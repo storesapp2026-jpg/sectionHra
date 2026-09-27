@@ -1194,7 +1194,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbysf3pJmgsn1tHnXKoV1ozXv6eQWwLKeb0GAJlQeeD3HjV8BujtD66c1YMCkqP5JL5w/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw1mZ4Ac-7VXZ1PMQj2x0yyaecFAdmxyepkBvswPKGgnmdsinV-abTk179HNVZajJO84A/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -1843,7 +1843,7 @@ function hasTeamWorkflows(activityId) {
 // loads and renders normally. Fix: retry a sessionExpired failure once after
 // a short delay before treating it as real; only a call that fails twice in
 // a row (or a genuinely stale/idle-timed-out session) actually logs out.
-async function callApi(action, params, _retried, _transportRetry) {
+async function callApi(action, params, _retried, _transportRetry, _retryStartedAt) {
   if (!API_URL || API_URL.indexOf('PASTE_') === 0) {
     throw new Error('Backend not connected yet. Deploy code.gs and set API_URL (see SETUP.md).');
   }
@@ -1905,18 +1905,22 @@ async function callApi(action, params, _retried, _transportRetry) {
   }
   if (!out.ok) {
     if (out.sessionExpired) {
-      // RETRY-WITH-BACKOFF (Aug 2026 hardening): a single 500ms retry wasn't
-      // always enough to outlast CacheService's cross-instance propagation
-      // lag right after login, especially on a cold-started backend
-      // instance - that left MASTERS empty (Master Data / Working Register
-      // both depend on it) even though the session was perfectly valid.
-      // _retried is now an attempt COUNTER (0,1,2,...) instead of a boolean;
-      // up to 3 retries with increasing delay before we accept the session
-      // is genuinely gone and log out.
+      // RETRY-WITH-BACKOFF (Sep 2026, widened): the old 3-try/~3s budget
+      // wasn't enough to outlast CacheService's cross-instance propagation
+      // lag right after login - most visibly right after a forced password
+      // change, where the user is still sitting on the "set a new password"
+      // modal and a background call (notifications poll, idle check, etc.)
+      // would hit this path, run out of retries in ~3s, and log them out
+      // mid-type even though the session was perfectly valid. Now retries
+      // for up to SESSION_RETRY_BUDGET_MS (~120s) with the delay per
+      // attempt capped at 5s, instead of stopping after a fixed 3 tries.
+      const SESSION_RETRY_BUDGET_MS = 120000;
       const attempt = _retried || 0;
-      if (attempt < 3 && action !== 'login') {
-        await new Promise(r => setTimeout(r, 500 * (attempt + 1))); // 500ms, 1000ms, 1500ms
-        return callApi(action, params, attempt + 1);
+      const startedAt = _retryStartedAt || Date.now();
+      const delay = Math.min(5000, 500 * (attempt + 1));
+      if (action !== 'login' && (Date.now() - startedAt) < SESSION_RETRY_BUDGET_MS) {
+        await new Promise(r => setTimeout(r, delay));
+        return callApi(action, params, attempt + 1, _transportRetry, startedAt);
       }
       logout();
       throw new Error('Your session expired. Please log in again.');
