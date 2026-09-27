@@ -1194,7 +1194,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbwpIf8m5lMXArGRyVLCfD3ymQV4a7-UZUKbgzbedRu_AOUUVycR2vZEdCTkuXOYBwE4/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw1mZ4Ac-7VXZ1PMQj2x0yyaecFAdmxyepkBvswPKGgnmdsinV-abTk179HNVZajJO84A/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -2153,7 +2153,14 @@ function showView(id) {
 // failed, so the caller can stop instead of silently building the app on
 // top of empty master data.
 async function loadMastersData(maxAttempts) {
-  maxAttempts = maxAttempts || 3;
+  // WIDENED (Sep 2026): 3 tries with a 700/1400ms backoff gave up in ~2s
+  // total - too fast for a cold-started Apps Script instance or a slow
+  // Sheets read, so people were landing on the blocking "Could not load
+  // Staff / Activity / Workflow data" screen on an otherwise-fine backend
+  // that just needed a bit more time to warm up. Now retries up to 8 times
+  // with the per-attempt delay capped at 5s, spending up to ~30s total
+  // before giving up and showing that screen.
+  maxAttempts = maxAttempts || 8;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const m = await callApi('getMasters', {});
@@ -2181,7 +2188,7 @@ async function loadMastersData(maxAttempts) {
       if (!SESSION) return false;
       if (attempt === maxAttempts) toast(e.message);
     }
-    if (attempt < maxAttempts) await new Promise(r => setTimeout(r, 700 * attempt));
+    if (attempt < maxAttempts) await new Promise(r => setTimeout(r, Math.min(5000, 700 * attempt)));
   }
   return false;
 }
