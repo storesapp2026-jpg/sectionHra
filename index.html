@@ -349,7 +349,7 @@ main.content{
       <p id="cpError" style="color:#b00020;font-size:13px"></p>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button id="cpCancelBtn" class="btn btn-outline" onclick="closeChangePasswordModal()" data-i18n="cancel">Cancel</button>
-        <button class="btn btn-brown" onclick="submitChangePassword()" data-i18n="saveNewPassword">Save New Password</button>
+        <button id="cpSaveBtn" class="btn btn-brown" onclick="submitChangePassword()" data-i18n="saveNewPassword">Save New Password</button>
       </div>
     </div>
   </div>
@@ -1408,6 +1408,8 @@ const I18N = {
   newPassword: { en: "New Password (min 8 characters, letters + numbers)", ta: "புதிய கடவுச்சொல் (குறைந்தது 8 எழுத்துகள், எழுத்தும் எண்ணும் சேர்த்து)" },
   confirmNewPassword: { en: "Confirm New Password", ta: "புதிய கடவுச்சொல்லை உறுதிப்படுத்தவும்" },
   saveNewPassword: { en: "Save New Password", ta: "புதிய கடவுச்சொல்லை சேமி" },
+  savingPassword: { en: "Saving...", ta: "சேமிக்கப்படுகிறது..." },
+  stillVerifyingSession: { en: "Still verifying your session, please wait a moment...", ta: "உங்கள் அமர்வு சரிபார்க்கப்படுகிறது, சிறிது நேரம் காத்திருக்கவும்..." },
   passwordTooShort: { en: "New password must be at least 8 characters with letters and numbers", ta: "புதிய கடவுச்சொல் குறைந்தது 8 எழுத்துகள், எழுத்தும் எண்ணும் கலந்து இருக்க வேண்டும்" },
   passwordsDontMatch: { en: "New password and confirmation do not match", ta: "புதிய கடவுச்சொல் மற்றும் உறுதிப்படுத்தல் பொருந்தவில்லை" },
   passwordChanged: { en: "Password changed successfully", ta: "கடவுச்சொல் வெற்றிகரமாக மாற்றப்பட்டது" },
@@ -1998,10 +2000,28 @@ async function submitChangePassword() {
   const newPassword = document.getElementById('cpNewPassword').value;
   const confirmPassword = document.getElementById('cpConfirmPassword').value;
   const errEl = document.getElementById('cpError');
+  const btn = document.getElementById('cpSaveBtn');
+  errEl.style.color = '#b00020';
   errEl.textContent = '';
   if (!oldPassword || !newPassword) { errEl.textContent = T('enterCreds'); return; }
   if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) { errEl.textContent = T('passwordTooShort'); return; }
   if (newPassword !== confirmPassword) { errEl.textContent = T('passwordsDontMatch'); return; }
+  // UX FIX (Sep 2026): this call used to give ZERO visible feedback while it
+  // was in flight - no disabled button, no spinner, no status text - unlike
+  // doLogin(). callApi()'s own sessionExpired retry logic (see callApi
+  // comments) silently retries for up to 120s with growing delays, and that
+  // retry is MOST LIKELY to trigger right here - a forced password-change
+  // modal appears seconds after a fresh login, right when the session token
+  // is still propagating across Apps Script's CacheService instances. With
+  // no loading state, that silent retry looked exactly like "nothing
+  // happens" when Save was clicked, even though it usually resolved on its
+  // own a few seconds later. Now the button disables and shows a status
+  // message immediately, and switches to a reassuring note if it runs long.
+  btn.disabled = true; btn.textContent = T('savingPassword');
+  const slowNoteTimer = setTimeout(() => {
+    errEl.style.color = 'var(--coffee-700)';
+    errEl.textContent = T('stillVerifyingSession');
+  }, 3000);
   try {
     await callApi('changePassword', { oldPassword, newPassword });
     SESSION.mustChangePassword = false;
@@ -2009,7 +2029,13 @@ async function submitChangePassword() {
     document.getElementById('changePasswordModal').dataset.forced = '';
     document.getElementById('changePasswordModal').style.display = 'none';
     toast(T('passwordChanged'));
-  } catch (e) { errEl.textContent = e.message; }
+  } catch (e) {
+    errEl.style.color = '#b00020';
+    errEl.textContent = e.message;
+  } finally {
+    clearTimeout(slowNoteTimer);
+    btn.disabled = false; btn.textContent = T('saveNewPassword');
+  }
 }
 
 
