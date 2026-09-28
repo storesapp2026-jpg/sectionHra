@@ -5327,4 +5327,161 @@ function openStaffForm(staffId) {
     ? `<option value="${escapeHtml(myDept)}">${escapeHtml(myDept)}</option>`
     : (MASTERS.departments || []).map(d => `<option value="${escapeHtml(d['Department Name'])}">${escapeHtml(d['Department Name'])}</option>`).join('');
   const s = staffId ? MASTERS.staff.find(x => x['Staff ID'] === staffId) : null;
-  card.dataset.staff
+  card.dataset.staffId = staffId || '';
+  document.getElementById('staffFormTitle').textContent = staffId ? ('Edit Staff — ' + staffId) : 'Add Staff';
+  document.getElementById('sfName').value = s ? s['Staff Name'] : '';
+  document.getElementById('sfDesignation').value = s ? s['Designation'] : '';
+  document.getElementById('sfDepartment').value = s ? (s['Department'] || myDept || 'Stores') : (myDept || 'Stores');
+  document.getElementById('sfSection').value = s ? s['Section'] : '';
+  document.getElementById('sfReportingManager').value = s ? s['Reporting Manager'] : '';
+  document.getElementById('sfDoj').value = s && s['Date of Joining'] ? localDateStr(new Date(s['Date of Joining'])) : '';
+  document.getElementById('sfStatus').value = s ? (s['Status'] || 'Active') : 'Active';
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function closeStaffForm() {
+  document.getElementById('staffFormCard').style.display = 'none';
+}
+async function saveStaffForm() {
+  if (!SESSION) { toast('Your session expired. Please log in again.'); return; }
+  const staffId = document.getElementById('staffFormCard').dataset.staffId;
+  const fields = {
+    'Staff Name': document.getElementById('sfName').value,
+    'Designation': document.getElementById('sfDesignation').value,
+    'Department': document.getElementById('sfDepartment').value,
+    'Section': document.getElementById('sfSection').value,
+    'Reporting Manager': document.getElementById('sfReportingManager').value,
+    'Date of Joining': document.getElementById('sfDoj').value,
+    'Status': document.getElementById('sfStatus').value
+  };
+  try {
+    if (staffId) {
+      await callApi('updateStaff', { actorRole: SESSION.role, actorUserId: SESSION.userId, staffId, fields });
+    } else {
+      await callApi('addStaff', {
+        actorRole: SESSION.role, actorUserId: SESSION.userId, staffName: fields['Staff Name'],
+        designation: fields['Designation'], department: fields['Department'], section: fields['Section'],
+        reportingManager: fields['Reporting Manager'], doj: fields['Date of Joining'], status: fields['Status']
+      });
+    }
+    toast(T('saveChanges'));
+    closeStaffForm();
+    MASTERS = await callApi('getMasters', {});
+    loadMastersView();
+  } catch (e) { toast(e.message); }
+}
+
+/* ---------- Department Master Add/Edit (Sep 2026, Phase 2) ---------- */
+function openDepartmentForm(departmentId) {
+  const card = document.getElementById('departmentFormCard');
+  const d = departmentId ? (MASTERS.departments || []).find(x => x['Department ID'] === departmentId) : null;
+  card.dataset.departmentId = departmentId || '';
+  document.getElementById('departmentFormTitle').textContent = departmentId ? ('Edit Department — ' + departmentId) : 'Add Department';
+  document.getElementById('deptfName').value = d ? d['Department Name'] : '';
+  document.getElementById('deptfStatus').value = d ? (d['Status'] || 'Active') : 'Active';
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function closeDepartmentForm() {
+  document.getElementById('departmentFormCard').style.display = 'none';
+}
+async function saveDepartmentForm() {
+  const departmentId = document.getElementById('departmentFormCard').dataset.departmentId;
+  const departmentName = document.getElementById('deptfName').value;
+  const status = document.getElementById('deptfStatus').value;
+  try {
+    if (departmentId) {
+      await callApi('updateDepartment', { actorRole: SESSION.role, actorUserId: SESSION.userId, departmentId, departmentName, status });
+    } else {
+      await callApi('addDepartment', { actorRole: SESSION.role, actorUserId: SESSION.userId, departmentName });
+    }
+    toast(T('saveChanges'));
+    closeDepartmentForm();
+    MASTERS = await callApi('getMasters', {});
+    loadMastersView();
+  } catch (e) { toast(e.message); }
+}
+
+/* ---------- Section Master Add/Edit ---------- */
+function openSectionForm(sectionId) {
+  const card = document.getElementById('sectionFormCard');
+  const s = sectionId ? (MASTERS.sections || []).find(x => x['Section ID'] === sectionId) : null;
+  card.dataset.sectionId = sectionId || '';
+  document.getElementById('sectionFormTitle').textContent = sectionId ? ('Edit Section — ' + sectionId) : 'Add Section';
+  document.getElementById('secfName').value = s ? s['Section Name'] : '';
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function closeSectionForm() {
+  document.getElementById('sectionFormCard').style.display = 'none';
+}
+async function saveSectionForm() {
+  const sectionId = document.getElementById('sectionFormCard').dataset.sectionId;
+  const sectionName = document.getElementById('secfName').value;
+  try {
+    if (sectionId) {
+      await callApi('updateSection', { actorRole: SESSION.role, actorUserId: SESSION.userId, sectionId, sectionName });
+    } else {
+      await callApi('addSection', { actorRole: SESSION.role, actorUserId: SESSION.userId, sectionName });
+    }
+    toast(T('saveChanges'));
+    closeSectionForm();
+    MASTERS = await callApi('getMasters', {});
+    loadMastersView();
+  } catch (e) { toast(e.message); }
+}
+
+/* ---------- Activity Master Add/Edit ---------- */
+// Activity Code/ID are left uneditable once created (Workflow Master and
+// Monthly Targets reference the Activity ID) - Edit mode only allows
+// renaming the display Activity Name.
+function openActivityForm(activityId) {
+  const card = document.getElementById('activityFormCard');
+  const a = activityId ? (MASTERS.activities || []).find(x => x['Activity ID'] === activityId) : null;
+  card.dataset.activityId = activityId || '';
+  document.getElementById('activityFormTitle').textContent = activityId ? ('Edit Activity — ' + activityId) : 'Add Activity';
+  document.getElementById('actfCode').value = a ? a['Activity Code'] : '';
+  document.getElementById('actfCode').disabled = !!activityId;
+  document.getElementById('actfName').value = a ? a['Activity Name'] : '';
+  document.getElementById('actfDepartment').innerHTML = (MASTERS.departments || []).map(d => `<option value="${escapeHtml(d['Department Name'])}">${escapeHtml(d['Department Name'])}</option>`).join('');
+  document.getElementById('actfDepartment').value = a ? (a['Department'] || 'Stores') : 'Stores';
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function closeActivityForm() {
+  document.getElementById('activityFormCard').style.display = 'none';
+  document.getElementById('actfCode').disabled = false;
+}
+async function saveActivityForm() {
+  const activityId = document.getElementById('activityFormCard').dataset.activityId;
+  const activityName = document.getElementById('actfName').value;
+  const activityCode = document.getElementById('actfCode').value;
+  const department = document.getElementById('actfDepartment').value;
+  try {
+    if (activityId) {
+      await callApi('updateActivity', { actorRole: SESSION.role, actorUserId: SESSION.userId, activityId, activityName, department });
+    } else {
+      await callApi('addActivity', { actorRole: SESSION.role, actorUserId: SESSION.userId, activityCode, activityName, department });
+    }
+    toast(T('saveChanges'));
+    closeActivityForm();
+    MASTERS = await callApi('getMasters', {});
+    loadMastersView();
+  } catch (e) { toast(e.message); }
+}
+
+
+/* ============================================================
+   UTIL
+   ============================================================ */
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return d;
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  return `${dd}-${mm}-${dt.getFullYear()}`;
+}
+</script>
+</body>
+</html>
