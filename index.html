@@ -342,9 +342,9 @@ main.content{
       <h3 data-i18n="changePassword">Change Password</h3>
       <p id="cpForcedNote" style="display:none;color:var(--coffee-700);font-size:13px" data-i18n="mustChangePasswordNote">For security, please set a new password before continuing.</p>
       <div class="form-row">
-        <div><label for="cpOldPassword" data-i18n="currentPassword">Current Password</label><input type="password" id="cpOldPassword"></div>
-        <div><label for="cpNewPassword" data-i18n="newPassword">New Password (min 8 characters, letters + numbers)</label><input type="password" id="cpNewPassword"></div>
-        <div><label for="cpConfirmPassword" data-i18n="confirmNewPassword">Confirm New Password</label><input type="password" id="cpConfirmPassword"></div>
+        <div><label for="cpOldPassword" data-i18n="currentPassword">Current Password</label><input type="password" id="cpOldPassword" autocomplete="current-password"></div>
+        <div><label for="cpNewPassword" data-i18n="newPassword">New Password (min 8 characters, letters + numbers)</label><input type="password" id="cpNewPassword" autocomplete="new-password"></div>
+        <div><label for="cpConfirmPassword" data-i18n="confirmNewPassword">Confirm New Password</label><input type="password" id="cpConfirmPassword" autocomplete="new-password"></div>
       </div>
       <p id="cpError" style="color:#b00020;font-size:13px"></p>
       <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -1104,12 +1104,13 @@ main.content{
             <h3 style="font-size:14px;color:var(--coffee-700)" data-i18n="staffMaster">Staff Master</h3>
             <button class="btn btn-brown btn-sm" onclick="openStaffForm(null)">+ Add Staff</button>
           </div>
-          <div class="table-wrap"><table id="staffTable"><thead><tr><th data-i18n="id">ID</th><th data-i18n="name">Name</th><th data-i18n="designation">Designation</th><th data-i18n="section">Section</th><th data-i18n="status">Status</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap"><table id="staffTable"><thead><tr><th data-i18n="id">ID</th><th data-i18n="name">Name</th><th data-i18n="designation">Designation</th><th>Department</th><th data-i18n="section">Section</th><th data-i18n="status">Status</th><th></th></tr></thead><tbody></tbody></table></div>
           <div id="staffFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
             <h4 id="staffFormTitle" style="margin-bottom:8px;">Add Staff</h4>
             <div class="form-row">
               <div><label for="sfName">Staff Name</label><input type="text" id="sfName"></div>
               <div><label for="sfDesignation">Designation</label><input type="text" id="sfDesignation"></div>
+              <div><label for="sfDepartment">Department</label><select id="sfDepartment"></select></div>
               <div><label for="sfSection">Section</label><select id="sfSection"></select></div>
               <div><label for="sfReportingManager">Reporting Manager</label><input type="text" id="sfReportingManager"></div>
               <div><label for="sfDoj">Date of Joining</label><input type="date" id="sfDoj"></div>
@@ -1125,6 +1126,26 @@ main.content{
              updateWorkflow) - these 3 cards are hidden for Manager and shown
              only for HR by applyMastersRoleUI() below. A Section Manager
              manages Staff (their own Section) in the card above only. -->
+        <!-- Sep 2026 (Multi-Department Phase 2): Department Master sits
+             above Section Master (Company -> Department -> Section ->
+             Staff) - HR-only, same requireHR() pattern as
+             addSection/updateSection. -->
+        <div class="card" id="departmentMasterCard">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:14px;color:var(--coffee-700)">Department Master</h3>
+            <button class="btn btn-brown btn-sm" onclick="openDepartmentForm(null)">+ Add Department</button>
+          </div>
+          <div class="table-wrap"><table id="departmentTable"><thead><tr><th>ID</th><th>Department Name</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div id="departmentFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
+            <h4 id="departmentFormTitle" style="margin-bottom:8px;">Add Department</h4>
+            <div class="form-row">
+              <div><label for="deptfName">Department Name</label><input type="text" id="deptfName"></div>
+              <div><label for="deptfStatus">Status</label><select id="deptfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
+            </div>
+            <button class="btn btn-brown btn-sm" onclick="saveDepartmentForm()">Save</button>
+            <button class="btn btn-outline btn-sm" onclick="closeDepartmentForm()">Cancel</button>
+          </div>
+        </div>
         <div class="card" id="sectionMasterCard">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <h3 style="font-size:14px;color:var(--coffee-700)">Section Master</h3>
@@ -1143,12 +1164,13 @@ main.content{
             <h3 style="font-size:14px;color:var(--coffee-700)">Activity Master</h3>
             <button class="btn btn-brown btn-sm" onclick="openActivityForm(null)">+ Add Activity</button>
           </div>
-          <div class="table-wrap"><table id="activityTable"><thead><tr><th>ID</th><th>Code</th><th>Name</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap"><table id="activityTable"><thead><tr><th>ID</th><th>Code</th><th>Name</th><th>Department</th><th></th></tr></thead><tbody></tbody></table></div>
           <div id="activityFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
             <h4 id="activityFormTitle" style="margin-bottom:8px;">Add Activity</h4>
             <div class="form-row">
               <div><label for="actfCode">Activity Code</label><input type="text" id="actfCode"></div>
               <div><label for="actfName">Activity Name</label><input type="text" id="actfName"></div>
+              <div><label for="actfDepartment">Department</label><select id="actfDepartment"></select></div>
             </div>
             <button class="btn btn-brown btn-sm" onclick="saveActivityForm()">Save</button>
             <button class="btn btn-outline btn-sm" onclick="closeActivityForm()">Cancel</button>
@@ -2029,6 +2051,13 @@ async function submitChangePassword() {
     document.getElementById('changePasswordModal').dataset.forced = '';
     document.getElementById('changePasswordModal').style.display = 'none';
     toast(T('passwordChanged'));
+    // FIX (Sep 2026): a forced first-login change never used to actually
+    // finish entering the app - enterApp() had already stopped short (see
+    // its comment) because Master Data can't load until the password is
+    // changed. Now that it just succeeded, pick up exactly where enterApp()
+    // left off. Guarded by appBooted so a VOLUNTARY password change (made
+    // from inside an already-running app) doesn't reload everything again.
+    if (!appBooted) { await finishEnteringApp(); }
   } catch (e) {
     errEl.style.color = '#b00020';
     errEl.textContent = e.message;
@@ -2110,7 +2139,7 @@ function applyHRRoleUI() {
 // gate is server-side.
 function applyMastersRoleUI() {
   const isHR = SESSION.role === 'HR';
-  ['sectionMasterCard', 'activityMasterCard', 'workflowMasterCard'].forEach(id => {
+  ['departmentMasterCard', 'sectionMasterCard', 'activityMasterCard', 'workflowMasterCard'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isHR ? '' : 'none';
   });
@@ -2239,6 +2268,28 @@ async function enterApp() {
   document.getElementById('app').style.display = 'flex';
   document.getElementById('whoLabel').textContent = SESSION.staffName + ' · ' + SESSION.role;
 
+  // FORCED-PASSWORD-CHANGE FIX (Sep 2026): getMasters() (called just below,
+  // via loadMastersData()) is blocked server-side for as long as
+  // mustChangePassword is true - every attempt comes back with "Password
+  // change required before using the application.", not a session/network
+  // error. loadMastersData() had no way to tell that apart from a real
+  // hiccup, so it burned through all its retries (~20-30s of guaranteed
+  // failures) and then called showMastersLoadError(), which replaces
+  // #app's ENTIRE innerHTML - and #changePasswordModal lives inside #app,
+  // so that destroyed the only way the person had to actually change their
+  // password. Reloading just repeated the same dead end forever.
+  // Fix: stop here and let doLogin()'s openChangePasswordModal(true) show
+  // the form untouched; finishEnteringApp() (below) runs the real boot
+  // sequence once submitChangePassword() actually succeeds.
+  if (SESSION.mustChangePassword) return;
+  await finishEnteringApp();
+}
+
+// Split out of enterApp() (see the comment there) so it can be (re)run
+// once a forced password change succeeds, without re-doing the
+// loginScreen/app-shell/whoLabel setup enterApp() already did.
+let appBooted = false;
+async function finishEnteringApp() {
   // BUGFIX (Aug 2026): getMasters() failures used to be handled with a
   // single attempt + a catch block that only bailed out if SESSION had
   // been cleared (i.e. a genuine session-expiry, which callApi() itself
@@ -2267,6 +2318,7 @@ async function enterApp() {
   document.getElementById('attDate').valueAsDate = new Date();
   initNotifications();
   startIdleWatch();
+  appBooted = true;
 }
 
 /* ============================================================
@@ -2478,6 +2530,7 @@ document.addEventListener('click', (e) => {
     case 'openMyMemoDetail': openMyMemoDetail(id); break;
     case 'submitMyMemoReply': submitMyMemoReply(id); break;
     case 'openStaffForm': openStaffForm(id); break;
+    case 'openDepartmentForm': openDepartmentForm(id); break;
     case 'openSectionForm': openSectionForm(id); break;
     case 'openActivityForm': openActivityForm(id); break;
   }
@@ -2801,6 +2854,12 @@ let CURRENT_ACTIVITY_WFS = [];
 function getSessionSectionId() {
   const s = MASTERS.staff.find(x => x['Staff ID'] === SESSION.staffId);
   return s ? (s['Section'] || '') : '';
+}
+// DEPARTMENT-WISE SCOPING (Sep 2026, Phase 2): mirrors getSessionSectionId()
+// one level up - Company -> Department -> Section -> Staff.
+function getSessionDepartmentId() {
+  const s = MASTERS.staff.find(x => x['Staff ID'] === SESSION.staffId);
+  return s ? (s['Department'] || '') : '';
 }
 function workflowAppliesToSection(w, sectionId) {
   const raw = (w['Sections'] || '').trim();
@@ -5218,17 +5277,27 @@ async function loadMastersView() {
   // enforces the real rule; this just keeps the list in sync). HR and an
   // unrestricted Manager (no Section set) see everyone, as before.
   const mySection = SESSION.role === 'Manager' ? getSessionSectionId() : '';
-  const staffForMasters = mySection ? MASTERS.staff.filter(s => (s['Section'] || '') === mySection) : MASTERS.staff;
+  // DEPARTMENT-WISE MANAGER SCOPING (Sep 2026, Phase 2): further narrows the
+  // list to the Manager's own Department (backend
+  // scopeStaffIdsToManagerScope_() enforces the real rule; this keeps the
+  // visible list in sync). HR and an unrestricted Manager see everyone.
+  const myDept = SESSION.role === 'Manager' ? getSessionDepartmentId() : '';
+  const staffForMasters0 = mySection ? MASTERS.staff.filter(s => (s['Section'] || '') === mySection) : MASTERS.staff;
+  const staffForMasters = myDept ? staffForMasters0.filter(s => (s['Department'] || '') === myDept) : staffForMasters0;
   document.querySelector('#staffTable tbody').innerHTML = staffForMasters.map(s => `
-    <tr><td>${escapeHtml(s['Staff ID'])}</td><td>${escapeHtml(s['Staff Name'])}</td><td>${escapeHtml(s['Designation'])}</td><td>${escapeHtml(s['Section'])}</td><td>${escapeHtml(s['Status'])}</td>
+    <tr><td>${escapeHtml(s['Staff ID'])}</td><td>${escapeHtml(s['Staff Name'])}</td><td>${escapeHtml(s['Designation'])}</td><td>${escapeHtml(s['Department'])}</td><td>${escapeHtml(s['Section'])}</td><td>${escapeHtml(s['Status'])}</td>
     <td><button class="btn btn-outline btn-sm" data-action="openStaffForm" data-id="${escapeHtml(s['Staff ID'])}">${T('editBtn')}</button></td></tr>
+  `).join('');
+  document.querySelector('#departmentTable tbody').innerHTML = (MASTERS.departments || []).map(d => `
+    <tr><td>${escapeHtml(d['Department ID'])}</td><td>${escapeHtml(d['Department Name'])}</td><td>${escapeHtml(d['Status'] || '')}</td>
+    <td><button class="btn btn-outline btn-sm" data-action="openDepartmentForm" data-id="${escapeHtml(d['Department ID'])}">${T('editBtn')}</button></td></tr>
   `).join('');
   document.querySelector('#sectionTable tbody').innerHTML = (MASTERS.sections || []).map(s => `
     <tr><td>${escapeHtml(s['Section ID'])}</td><td>${escapeHtml(s['Section Name'])}</td>
     <td><button class="btn btn-outline btn-sm" data-action="openSectionForm" data-id="${escapeHtml(s['Section ID'])}">${T('editBtn')}</button></td></tr>
   `).join('');
   document.querySelector('#activityTable tbody').innerHTML = (MASTERS.activities || []).map(a => `
-    <tr><td>${escapeHtml(a['Activity ID'])}</td><td>${escapeHtml(a['Activity Code'])}</td><td>${escapeHtml(a['Activity Name'])}</td>
+    <tr><td>${escapeHtml(a['Activity ID'])}</td><td>${escapeHtml(a['Activity Code'])}</td><td>${escapeHtml(a['Activity Name'])}</td><td>${escapeHtml(a['Department'] || '')}</td>
     <td><button class="btn btn-outline btn-sm" data-action="openActivityForm" data-id="${escapeHtml(a['Activity ID'])}">${T('editBtn')}</button></td></tr>
   `).join('');
   document.querySelector('#workflowTable tbody').innerHTML = MASTERS.workflows.map(w => `
@@ -5250,11 +5319,19 @@ function openStaffForm(staffId) {
   document.getElementById('sfSection').innerHTML = mySection
     ? `<option value="${escapeHtml(mySection)}">${escapeHtml(mySection)}</option>`
     : (MASTERS.sections || []).map(s => `<option value="${escapeHtml(s['Section Name'])}">${escapeHtml(s['Section Name'])}</option>`).join('');
+  // DEPARTMENT-WISE MANAGER SCOPING (Sep 2026, Phase 2): mirrors the
+  // Section dropdown above - a Manager scoped to one Department can only
+  // pick that Department (locked, single option).
+  const myDept = SESSION.role === 'Manager' ? getSessionDepartmentId() : '';
+  document.getElementById('sfDepartment').innerHTML = myDept
+    ? `<option value="${escapeHtml(myDept)}">${escapeHtml(myDept)}</option>`
+    : (MASTERS.departments || []).map(d => `<option value="${escapeHtml(d['Department Name'])}">${escapeHtml(d['Department Name'])}</option>`).join('');
   const s = staffId ? MASTERS.staff.find(x => x['Staff ID'] === staffId) : null;
   card.dataset.staffId = staffId || '';
   document.getElementById('staffFormTitle').textContent = staffId ? ('Edit Staff — ' + staffId) : 'Add Staff';
   document.getElementById('sfName').value = s ? s['Staff Name'] : '';
   document.getElementById('sfDesignation').value = s ? s['Designation'] : '';
+  document.getElementById('sfDepartment').value = s ? (s['Department'] || myDept || 'Stores') : (myDept || 'Stores');
   document.getElementById('sfSection').value = s ? s['Section'] : '';
   document.getElementById('sfReportingManager').value = s ? s['Reporting Manager'] : '';
   document.getElementById('sfDoj').value = s && s['Date of Joining'] ? localDateStr(new Date(s['Date of Joining'])) : '';
@@ -5271,6 +5348,7 @@ async function saveStaffForm() {
   const fields = {
     'Staff Name': document.getElementById('sfName').value,
     'Designation': document.getElementById('sfDesignation').value,
+    'Department': document.getElementById('sfDepartment').value,
     'Section': document.getElementById('sfSection').value,
     'Reporting Manager': document.getElementById('sfReportingManager').value,
     'Date of Joining': document.getElementById('sfDoj').value,
@@ -5282,12 +5360,43 @@ async function saveStaffForm() {
     } else {
       await callApi('addStaff', {
         actorRole: SESSION.role, actorUserId: SESSION.userId, staffName: fields['Staff Name'],
-        designation: fields['Designation'], section: fields['Section'],
+        designation: fields['Designation'], department: fields['Department'], section: fields['Section'],
         reportingManager: fields['Reporting Manager'], doj: fields['Date of Joining'], status: fields['Status']
       });
     }
     toast(T('saveChanges'));
     closeStaffForm();
+    MASTERS = await callApi('getMasters', {});
+    loadMastersView();
+  } catch (e) { toast(e.message); }
+}
+
+/* ---------- Department Master Add/Edit (Sep 2026, Phase 2) ---------- */
+function openDepartmentForm(departmentId) {
+  const card = document.getElementById('departmentFormCard');
+  const d = departmentId ? (MASTERS.departments || []).find(x => x['Department ID'] === departmentId) : null;
+  card.dataset.departmentId = departmentId || '';
+  document.getElementById('departmentFormTitle').textContent = departmentId ? ('Edit Department — ' + departmentId) : 'Add Department';
+  document.getElementById('deptfName').value = d ? d['Department Name'] : '';
+  document.getElementById('deptfStatus').value = d ? (d['Status'] || 'Active') : 'Active';
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function closeDepartmentForm() {
+  document.getElementById('departmentFormCard').style.display = 'none';
+}
+async function saveDepartmentForm() {
+  const departmentId = document.getElementById('departmentFormCard').dataset.departmentId;
+  const departmentName = document.getElementById('deptfName').value;
+  const status = document.getElementById('deptfStatus').value;
+  try {
+    if (departmentId) {
+      await callApi('updateDepartment', { actorRole: SESSION.role, actorUserId: SESSION.userId, departmentId, departmentName, status });
+    } else {
+      await callApi('addDepartment', { actorRole: SESSION.role, actorUserId: SESSION.userId, departmentName });
+    }
+    toast(T('saveChanges'));
+    closeDepartmentForm();
     MASTERS = await callApi('getMasters', {});
     loadMastersView();
   } catch (e) { toast(e.message); }
@@ -5334,6 +5443,8 @@ function openActivityForm(activityId) {
   document.getElementById('actfCode').value = a ? a['Activity Code'] : '';
   document.getElementById('actfCode').disabled = !!activityId;
   document.getElementById('actfName').value = a ? a['Activity Name'] : '';
+  document.getElementById('actfDepartment').innerHTML = (MASTERS.departments || []).map(d => `<option value="${escapeHtml(d['Department Name'])}">${escapeHtml(d['Department Name'])}</option>`).join('');
+  document.getElementById('actfDepartment').value = a ? (a['Department'] || 'Stores') : 'Stores';
   card.style.display = 'block';
   card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -5345,11 +5456,12 @@ async function saveActivityForm() {
   const activityId = document.getElementById('activityFormCard').dataset.activityId;
   const activityName = document.getElementById('actfName').value;
   const activityCode = document.getElementById('actfCode').value;
+  const department = document.getElementById('actfDepartment').value;
   try {
     if (activityId) {
-      await callApi('updateActivity', { actorRole: SESSION.role, actorUserId: SESSION.userId, activityId, activityName });
+      await callApi('updateActivity', { actorRole: SESSION.role, actorUserId: SESSION.userId, activityId, activityName, department });
     } else {
-      await callApi('addActivity', { actorRole: SESSION.role, actorUserId: SESSION.userId, activityCode, activityName });
+      await callApi('addActivity', { actorRole: SESSION.role, actorUserId: SESSION.userId, activityCode, activityName, department });
     }
     toast(T('saveChanges'));
     closeActivityForm();
