@@ -1216,7 +1216,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbwbRhVENC5lFbdPI0iPgMJbyuhlYomgvT0ooxuIKoYi9Kryzh0nOCW9MVWkOAKj5iV4/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw1mZ4Ac-7VXZ1PMQj2x0yyaecFAdmxyepkBvswPKGgnmdsinV-abTk179HNVZajJO84A/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -2642,7 +2642,7 @@ async function loadDashboard() {
     <div class="stat-card"><div class="label">${entriesLabel}</div><div class="value">${d.totalEntries}</div></div>
     <div class="stat-card alt"><div class="label">${kpiPctLabel}</div><div class="value">${fnum(d.totalKpiPct)}%</div>${qtyHtml}${trendHtml}</div>
     <div class="stat-card"><div class="label">${T('pendingApprovals')}</div><div class="value">${d.pendingApprovals}</div></div>
-    <div class="stat-card alt"><div class="label">${T('role')}</div><div class="value" style="font-size:18px">${SESSION.role}</div></div>
+    <div class="stat-card alt"><div class="label">${T('role')}</div><div class="value" style="font-size:18px">${escapeHtml(SESSION.role)}</div></div>
   `;
   // Achievement % charts (the old marks charts were removed). A response
   // cached before the backend update may not carry these fields yet, so fall
@@ -3075,7 +3075,7 @@ async function loadMyDrafts() {
             <div style="font-weight:600;color:var(--coffee-700);">${escapeHtml(wg.workflowName)}</div>
             <div>Staff: <strong>${escapeHtml(wg.staffName)}</strong></div>
             <div>Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}</div>
-            <div>Actual: <strong>${wg.actual}</strong>${wg.remarks ? ' &middot; Remarks: ' + escapeHtml(wg.remarks) : ''}</div>
+            <div>Actual: <strong>${escapeHtml(wg.actual)}</strong>${wg.remarks ? ' &middot; Remarks: ' + escapeHtml(wg.remarks) : ''}</div>
           </div>
         `).join('')}
       </div>
@@ -3228,7 +3228,7 @@ async function loadRegister() {
       ? '0'
       : (split
         ? `${escapeHtml(r['Effective KPI Score'])} <span style="color:var(--coffee-500);font-size:11px;">(${escapeHtml(r['KPI Score'])} ÷ ${escapeHtml(r['Team Split Size'])})</span>`
-        : r['KPI Score']);
+        : escapeHtml(r['KPI Score']));
     return `
     <tr>
       <td>${fmtDate(r['Date'])}</td><td>${escapeHtml(r['Activity Name'])}</td><td>${escapeHtml(r['Workflow Name'])}</td><td>${escapeHtml(r['Staff Name'])}</td>
@@ -3284,7 +3284,7 @@ function renderApprovalGroupCard(g) {
         <div style="font-size:12.5px;color:var(--coffee-600);line-height:1.7;">
           Staff: <strong>${escapeHtml(wg.staffName)}</strong><br>
           Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}<br>
-          Actual: <strong>${wg.actual}</strong> &middot; Target: ${wg.target}
+          Actual: <strong>${escapeHtml(wg.actual)}</strong> &middot; Target: ${escapeHtml(wg.target)}
           ${wg.remarks ? '<br>Remarks: ' + escapeHtml(wg.remarks) : ''}
         </div>
         ${isSubmitted ? `
@@ -3869,8 +3869,8 @@ function scoreCardHtml(d) {
     <div class="grid grid-4">
       <div class="stat-card"><div class="label">${T('totalScore')}</div><div class="value">${d.totalScore} / ${d.totalMaxScore}</div></div>
       <div class="stat-card alt"><div class="label">${T('achievementPct')}</div><div class="value">${d.overallPct}%</div></div>
-      <div class="stat-card"><div class="label">${T('grade')}</div><div class="value">${d.grade}</div></div>
-      <div class="stat-card alt"><div class="label">${T('overallPerformance')}</div><div class="value" style="font-size:15px">${d.rating}</div></div>
+      <div class="stat-card"><div class="label">${T('grade')}</div><div class="value">${escapeHtml(d.grade)}</div></div>
+      <div class="stat-card alt"><div class="label">${T('overallPerformance')}</div><div class="value" style="font-size:15px">${escapeHtml(d.rating)}</div></div>
     </div>
     <div class="card">
       <div class="table-wrap"><table><thead><tr>
@@ -4047,7 +4047,7 @@ async function runFormulaVerification() {
     badge.innerHTML = '<span style="color:' + statusColor(result.overall) + '">' +
       T('fvValidation') + ': ' + statusLabel(result.overall) + '</span>';
     tbody.innerHTML = result.rows.map(r => `<tr>
-        <td>${r.check}</td><td>${r.expected}</td><td>${r.actual}</td>
+        <td>${escapeHtml(r.check)}</td><td>${escapeHtml(r.expected)}</td><td>${escapeHtml(r.actual)}</td>
         <td style="color:${statusColor(r.status)};font-weight:700">${statusLabel(r.status)}</td>
       </tr>`).join('');
     const dupWrap = document.getElementById('fvDupWrap');
@@ -5226,7 +5226,7 @@ function printReport() {
   // Falls back to a fresh company/department-only line in the unlikely
   // case Print is somehow reached before that ran.
   const lh = lastReportMeta || { company: T('lhCompanyName'), dept: `${T('lhDepartmentLabel')}: ${T('lhDepartmentDefault')}`, meta: `${T('lhPreparedOn')}: ${new Date().toLocaleString()}` };
-  w.document.write(`<html><head><title>${title}</title><style>
+  w.document.write(`<html><head><title>${escapeHtml(title)}</title><style>
     body{font-family:Arial,sans-serif;padding:20px;} h2{margin-bottom:4px;}
     .lhCompany{font-size:16px;font-weight:700;margin-bottom:2px;} .lhDept{font-size:13px;margin-bottom:2px;} .lhMeta{font-size:11px;color:#555;margin-bottom:10px;}
     table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #999;padding:5px 7px;text-align:left;}
