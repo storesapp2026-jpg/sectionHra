@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" id="htmlRoot">
 <head>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stores KPI &amp; Appraisal | Sri Narasu's Coffee Co.</title>
@@ -342,14 +343,14 @@ main.content{
       <h3 data-i18n="changePassword">Change Password</h3>
       <p id="cpForcedNote" style="display:none;color:var(--coffee-700);font-size:13px" data-i18n="mustChangePasswordNote">For security, please set a new password before continuing.</p>
       <div class="form-row">
-        <div><label for="cpOldPassword" data-i18n="currentPassword">Current Password</label><input type="password" id="cpOldPassword" autocomplete="current-password"></div>
-        <div><label for="cpNewPassword" data-i18n="newPassword">New Password (min 8 characters, letters + numbers)</label><input type="password" id="cpNewPassword" autocomplete="new-password"></div>
-        <div><label for="cpConfirmPassword" data-i18n="confirmNewPassword">Confirm New Password</label><input type="password" id="cpConfirmPassword" autocomplete="new-password"></div>
+        <div><label for="cpOldPassword" data-i18n="currentPassword">Current Password</label><input type="password" id="cpOldPassword"></div>
+        <div><label for="cpNewPassword" data-i18n="newPassword">New Password (min 8 characters, letters + numbers)</label><input type="password" id="cpNewPassword"></div>
+        <div><label for="cpConfirmPassword" data-i18n="confirmNewPassword">Confirm New Password</label><input type="password" id="cpConfirmPassword"></div>
       </div>
       <p id="cpError" style="color:#b00020;font-size:13px"></p>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button id="cpCancelBtn" class="btn btn-outline" onclick="closeChangePasswordModal()" data-i18n="cancel">Cancel</button>
-        <button id="cpSaveBtn" class="btn btn-brown" onclick="submitChangePassword()" data-i18n="saveNewPassword">Save New Password</button>
+        <button class="btn btn-brown" onclick="submitChangePassword()" data-i18n="saveNewPassword">Save New Password</button>
       </div>
     </div>
   </div>
@@ -404,6 +405,27 @@ main.content{
        contract: updateTrainingRecord() does not accept them; a genuine
        date/training/staff correction is delete+re-add). Opened via the new
        Edit button on each Training Register row. -->
+  <!-- CORRECT APPROVED QTY (Manager only): corrects ONE approved Working Register
+       line (the row whose button was clicked). Other lines - including
+       co-staff lines of the same team entry - are never touched. -->
+  <div id="correctQtyModal" class="modal-overlay" style="display:none">
+    <div class="modal-box" style="max-width:480px">
+      <h3 data-i18n="correctQtyTitle">Correct Approved Qty</h3>
+      <p id="cqSubtitle" style="font-size:13px;color:var(--coffee-700);margin-bottom:10px"></p>
+      <input type="hidden" id="cqLineId">
+      <div class="form-row">
+        <div><label for="cqOld" data-i18n="cqOldQty">Current Approved Qty</label><input type="text" id="cqOld" disabled></div>
+        <div><label for="cqNew" data-i18n="cqNewQty">Correct Qty</label><input type="number" id="cqNew" min="0" step="any"></div>
+        <div style="grid-column:1/-1"><label for="cqReason" data-i18n="reason">Reason</label><input type="text" id="cqReason" maxlength="200"></div>
+      </div>
+      <p style="font-size:12px;color:var(--coffee-500);margin-top:6px" data-i18n="cqNote">Only this one entry line is corrected. KPI Score is recalculated and the change is recorded in Remarks and Audit Log.</p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+        <button class="btn btn-outline" onclick="document.getElementById('correctQtyModal').style.display='none'" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-brown" onclick="saveCorrectQty()" data-i18n="saveChanges">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
   <div id="editTrainingRecordModal" class="modal-overlay" style="display:none">
     <div class="modal-box" style="max-width:520px">
       <h3 data-i18n="editTrainingRecord">Edit Training Record</h3>
@@ -493,7 +515,11 @@ main.content{
             <select id="dashRangeSelect" onchange="onDashboardRangeChange()">
               <option value="thisMonth" data-i18n="dashRangeThisMonth">This Month</option>
               <option value="last60" data-i18n="dashRangeLast60">Last 60 Days</option>
+              <option value="month" data-i18n="dashRangeSelectMonth">Select Month</option>
             </select>
+          </div>
+          <div id="dashMonthWrap" style="display:none"><label for="dashMonth" data-i18n="month">Month</label>
+            <input type="month" id="dashMonth" onchange="onDashboardRangeChange()">
           </div>
         </div>
 
@@ -523,6 +549,18 @@ main.content{
       <section class="view" id="view-register">
         <h2 class="view-title" data-i18n="regTitle">Working Register</h2>
         <p class="view-sub" data-i18n="regSub">Pick the Date and Activity, then tick the workflows you performed. Team workflows can be entered multiple times on the same date for separate jobs.</p>
+        <div class="card" id="cqCard" style="display:none">
+          <div style="font-weight:700;margin-bottom:8px" data-i18n="correctQtyTitle">Correct Approved Qty</div>
+          <div class="form-row">
+            <div><label for="cqStaff" data-i18n="staff">Staff</label><select id="cqStaff"></select></div>
+            <div><label for="cqWorkflow" data-i18n="workflow">Workflow</label><select id="cqWorkflow"></select></div>
+            <div><label for="cqMonth" data-i18n="date">Date</label><input type="date" id="cqMonth"></div>
+            <div style="align-self:end"><button class="btn btn-brown" onclick="loadCorrectQtyLines()" data-i18n="cqShow">Show Approved Lines</button></div>
+          </div>
+          <div class="table-wrap" style="margin-top:10px"><table id="cqTable"><thead><tr>
+            <th data-i18n="date">Date</th><th data-i18n="cqOldQty">Current Approved Qty</th><th>Team</th><th></th>
+          </tr></thead><tbody><tr><td colspan="4" class="empty" data-i18n="cqPick">Select Staff, Workflow and Date.</td></tr></tbody></table></div>
+        </div>
         <div class="card">
           <div style="font-size:12.5px;color:var(--coffee-600);margin-bottom:10px;" id="regLoggedByLine"></div>
           <div class="form-row">
@@ -540,7 +578,7 @@ main.content{
             </div>
             <div id="wfChecklist"></div>
             <div class="form-row" style="margin-top:12px;">
-              <div><label for="regRemarks" data-i18n="remarksOpt">Remarks (optional)</label><input type="text" id="regRemarks" placeholder="Applies to any workflow above with no remarks of its own"></div>
+              <div><label for="regRemarks" data-i18n="remarksReq">Remarks (required to Submit)</label><input type="text" id="regRemarks" placeholder="Applies to any workflow above with no remarks of its own"></div>
             </div>
           </div>
 
@@ -1098,19 +1136,18 @@ main.content{
       <!-- MASTERS (Manager only) -->
       <section class="view" id="view-masters">
         <h2 class="view-title" data-i18n="mastersTitle">Master Data</h2>
-        <p class="view-sub" id="mastersSubText">Staff, Sections, Activities and Workflows. Manager can Add/Edit Staff, Section and Activity records directly here.</p>
+        <p class="view-sub" data-i18n="mastersSub">Staff, Sections, Activities and Workflows. Manager can Add/Edit Staff, Section and Activity records directly here.</p>
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <h3 style="font-size:14px;color:var(--coffee-700)" data-i18n="staffMaster">Staff Master</h3>
             <button class="btn btn-brown btn-sm" onclick="openStaffForm(null)">+ Add Staff</button>
           </div>
-          <div class="table-wrap"><table id="staffTable"><thead><tr><th data-i18n="id">ID</th><th data-i18n="name">Name</th><th data-i18n="designation">Designation</th><th>Department</th><th data-i18n="section">Section</th><th data-i18n="status">Status</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap"><table id="staffTable"><thead><tr><th data-i18n="id">ID</th><th data-i18n="name">Name</th><th data-i18n="designation">Designation</th><th data-i18n="section">Section</th><th data-i18n="status">Status</th><th></th></tr></thead><tbody></tbody></table></div>
           <div id="staffFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
             <h4 id="staffFormTitle" style="margin-bottom:8px;">Add Staff</h4>
             <div class="form-row">
               <div><label for="sfName">Staff Name</label><input type="text" id="sfName"></div>
               <div><label for="sfDesignation">Designation</label><input type="text" id="sfDesignation"></div>
-              <div><label for="sfDepartment">Department</label><select id="sfDepartment"></select></div>
               <div><label for="sfSection">Section</label><select id="sfSection"></select></div>
               <div><label for="sfReportingManager">Reporting Manager</label><input type="text" id="sfReportingManager"></div>
               <div><label for="sfDoj">Date of Joining</label><input type="date" id="sfDoj"></div>
@@ -1120,33 +1157,7 @@ main.content{
             <button class="btn btn-outline btn-sm" onclick="closeStaffForm()">Cancel</button>
           </div>
         </div>
-        <!-- Sep 2026: Section/Activity/Workflow Master management is now
-             HR-only "global control" (see Code.gs requireHR() guards on
-             addSection/updateSection/addActivity/updateActivity/
-             updateWorkflow) - these 3 cards are hidden for Manager and shown
-             only for HR by applyMastersRoleUI() below. A Section Manager
-             manages Staff (their own Section) in the card above only. -->
-        <!-- Sep 2026 (Multi-Department Phase 2): Department Master sits
-             above Section Master (Company -> Department -> Section ->
-             Staff) - HR-only, same requireHR() pattern as
-             addSection/updateSection. -->
-        <div class="card" id="departmentMasterCard">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <h3 style="font-size:14px;color:var(--coffee-700)">Department Master</h3>
-            <button class="btn btn-brown btn-sm" onclick="openDepartmentForm(null)">+ Add Department</button>
-          </div>
-          <div class="table-wrap"><table id="departmentTable"><thead><tr><th>ID</th><th>Department Name</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
-          <div id="departmentFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
-            <h4 id="departmentFormTitle" style="margin-bottom:8px;">Add Department</h4>
-            <div class="form-row">
-              <div><label for="deptfName">Department Name</label><input type="text" id="deptfName"></div>
-              <div><label for="deptfStatus">Status</label><select id="deptfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
-            </div>
-            <button class="btn btn-brown btn-sm" onclick="saveDepartmentForm()">Save</button>
-            <button class="btn btn-outline btn-sm" onclick="closeDepartmentForm()">Cancel</button>
-          </div>
-        </div>
-        <div class="card" id="sectionMasterCard">
+        <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <h3 style="font-size:14px;color:var(--coffee-700)">Section Master</h3>
             <button class="btn btn-brown btn-sm" onclick="openSectionForm(null)">+ Add Section</button>
@@ -1159,24 +1170,23 @@ main.content{
             <button class="btn btn-outline btn-sm" onclick="closeSectionForm()">Cancel</button>
           </div>
         </div>
-        <div class="card" id="activityMasterCard">
+        <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <h3 style="font-size:14px;color:var(--coffee-700)">Activity Master</h3>
             <button class="btn btn-brown btn-sm" onclick="openActivityForm(null)">+ Add Activity</button>
           </div>
-          <div class="table-wrap"><table id="activityTable"><thead><tr><th>ID</th><th>Code</th><th>Name</th><th>Department</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap"><table id="activityTable"><thead><tr><th>ID</th><th>Code</th><th>Name</th><th></th></tr></thead><tbody></tbody></table></div>
           <div id="activityFormCard" class="card" style="display:none;margin-top:10px;background:#fafafa;">
             <h4 id="activityFormTitle" style="margin-bottom:8px;">Add Activity</h4>
             <div class="form-row">
               <div><label for="actfCode">Activity Code</label><input type="text" id="actfCode"></div>
               <div><label for="actfName">Activity Name</label><input type="text" id="actfName"></div>
-              <div><label for="actfDepartment">Department</label><select id="actfDepartment"></select></div>
             </div>
             <button class="btn btn-brown btn-sm" onclick="saveActivityForm()">Save</button>
             <button class="btn btn-outline btn-sm" onclick="closeActivityForm()">Cancel</button>
           </div>
         </div>
-        <div class="card" id="workflowMasterCard">
+        <div class="card">
           <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="workflowMaster">Activity &amp; Workflow Master</h3>
           <div class="table-wrap"><table id="workflowTable"><thead><tr><th data-i18n="activity">Activity</th><th data-i18n="workflow">Workflow</th><th data-i18n="kpi">KPI</th><th data-i18n="unit">Unit</th><th data-i18n="perEntryTarget">Per-Entry Target</th><th data-i18n="weightagePct">Weightage %</th><th data-i18n="maxScore">Max Score</th><th data-i18n="expectedOutput">Expected Output</th><th data-i18n="status">Status</th><th data-i18n="colSections">Sections</th></tr></thead><tbody></tbody></table></div>
         </div>
@@ -1216,7 +1226,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbwbRhVENC5lFbdPI0iPgMJbyuhlYomgvT0ooxuIKoYi9Kryzh0nOCW9MVWkOAKj5iV4/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyqtdKYYlaqD1L7gn2tYPqZ23WdOVrkDEIk9q-01sxgLKqK7AxY5AZOsi2jtpyzWJAa/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -1275,6 +1285,8 @@ const I18N = {
   selectAll: { en: "Select All", ta: "அனைத்தையும் தேர்ந்தெடு" },
   clearAll: { en: "Clear All", ta: "அனைத்தையும் அழி" },
   remarksOpt: { en: "Remarks (optional)", ta: "குறிப்புகள் (விருப்பம்)" },
+  remarksReq: { en: "Remarks (required to Submit)", ta: "குறிப்புகள் (Submit செய்ய கட்டாயம்)" },
+  remarksRequiredFor: { en: "Remarks is mandatory before Submit. Please enter Remarks for:", ta: "Submit செய்யும் முன் குறிப்புகள் கட்டாயம். இவற்றுக்கு குறிப்புகளை உள்ளிடவும்:" },
   saveDraft: { en: "🟡 Save Draft", ta: "🟡 வரைவைச் சேமி" },
   submitBtn: { en: "🟢 Submit", ta: "🟢 சமர்ப்பி" },
   myDrafts: { en: "My Draft Entries", ta: "எனது வரைவு பதிவுகள்" },
@@ -1425,13 +1437,22 @@ const I18N = {
   saveManualScores: { en: "Save Manual Scores", ta: "கைமுறை மதிப்பெண்களைச் சேமி" },
   changePassword: { en: "Change Password", ta: "கடவுச்சொல்லை மாற்று" },
   cancel: { en: "Cancel", ta: "ரத்துசெய்" },
+  correctQtyBtn: { en: "Correct Qty", ta: "அளவு திருத்து" },
+  correctQtyTitle: { en: "Correct Approved Qty", ta: "அங்கீகரிக்கப்பட்ட அளவை திருத்து" },
+  cqOldQty: { en: "Current Approved Qty", ta: "தற்போதைய அளவு" },
+  cqNewQty: { en: "Correct Qty", ta: "சரியான அளவு" },
+  cqNote: { en: "Only this one entry line is corrected. KPI Score is recalculated and the change is recorded in Remarks and Audit Log.", ta: "இந்த ஒரு வரி மட்டுமே திருத்தப்படும். KPI மதிப்பெண் மீண்டும் கணக்கிடப்படும்; மாற்றம் Remarks மற்றும் Audit Log-இல் பதிவாகும்." },
+  cqNeedQty: { en: "Enter a valid Qty (0 or more).", ta: "சரியான அளவை (0 அல்லது அதற்கு மேல்) உள்ளிடவும்." },
+  cqNeedReason: { en: "Reason is required.", ta: "காரணம் அவசியம்." },
+  cqShow: { en: "Show Approved Lines", ta: "அங்கீகரிக்கப்பட்ட வரிகளைக் காட்டு" },
+  cqPick: { en: "Select Staff, Workflow and Date.", ta: "Staff, Workflow, Date தேர்ந்தெடுக்கவும்." },
+  cqNone: { en: "No approved lines found.", ta: "அங்கீகரிக்கப்பட்ட வரிகள் இல்லை." },
+  cqDone: { en: "Qty corrected", ta: "அளவு திருத்தப்பட்டது" },
   mustChangePasswordNote: { en: "For security, please set a new password before continuing.", ta: "பாதுகாப்பிற்காக, தொடர்வதற்கு முன் புதிய கடவுச்சொல்லை அமைக்கவும்." },
   currentPassword: { en: "Current Password", ta: "தற்போதைய கடவுச்சொல்" },
   newPassword: { en: "New Password (min 8 characters, letters + numbers)", ta: "புதிய கடவுச்சொல் (குறைந்தது 8 எழுத்துகள், எழுத்தும் எண்ணும் சேர்த்து)" },
   confirmNewPassword: { en: "Confirm New Password", ta: "புதிய கடவுச்சொல்லை உறுதிப்படுத்தவும்" },
   saveNewPassword: { en: "Save New Password", ta: "புதிய கடவுச்சொல்லை சேமி" },
-  savingPassword: { en: "Saving...", ta: "சேமிக்கப்படுகிறது..." },
-  stillVerifyingSession: { en: "Still verifying your session, please wait a moment...", ta: "உங்கள் அமர்வு சரிபார்க்கப்படுகிறது, சிறிது நேரம் காத்திருக்கவும்..." },
   passwordTooShort: { en: "New password must be at least 8 characters with letters and numbers", ta: "புதிய கடவுச்சொல் குறைந்தது 8 எழுத்துகள், எழுத்தும் எண்ணும் கலந்து இருக்க வேண்டும்" },
   passwordsDontMatch: { en: "New password and confirmation do not match", ta: "புதிய கடவுச்சொல் மற்றும் உறுதிப்படுத்தல் பொருந்தவில்லை" },
   passwordChanged: { en: "Password changed successfully", ta: "கடவுச்சொல் வெற்றிகரமாக மாற்றப்பட்டது" },
@@ -1467,9 +1488,6 @@ const I18N = {
   totalKpiScore: { en: "Total KPI Score", ta: "மொத்த KPI மதிப்பெண்" },
   mastersTitle: { en: "Master Data", ta: "மூல தரவு" },
   mastersSub: { en: "Staff, Sections and Activities can be Added/Edited here. Workflow Target/Weightage/Status changes are made on the separate Edit Workflow screen. Never edit any of these sheets directly in Google Sheets — changes made there are not validated or logged.", ta: "பணியாளர்கள், பிரிவுகள் மற்றும் செயல்பாடுகளை இங்கேயே Add/Edit செய்யலாம். Workflow-ஓட Target/Weightage/Status மாற்றங்கள் தனி Edit Workflow screen-ல் செய்யப்படும். இந்த Sheets எதையும் Google Sheets-ல் நேரடியாகத் திருத்த வேண்டாம் — அங்கே செய்யும் மாற்றங்கள் validate அல்லது log ஆகாது." },
-  // Sep 2026: role-specific Masters page subtitle - see applyMastersRoleUI().
-  mastersSubHR: { en: "Full control: Staff (any Section), Section, Activity and Workflow Master (Target/Weightage/Unit/Status). Never edit these sheets directly in Google Sheets — changes made there are not validated or logged.", ta: "முழு கட்டுப்பாடு: Staff (எந்த Section-உம்), Section, Activity மற்றும் Workflow Master (Target/Weightage/Unit/Status). இந்த Sheets-ஐ Google Sheets-ல் நேரடியாகத் திருத்த வேண்டாம் — அங்கே செய்யும் மாற்றங்கள் validate அல்லது log ஆகாது." },
-  mastersSubManager: { en: "You can Add/Edit Staff within your own Section only. Section, Activity and Workflow Master are managed by HR.", ta: "உங்க own Section Staff-ஐ மட்டும் Add/Edit பண்ணலாம். Section, Activity, Workflow Master HR-ஆல் நிர்வகிக்கப்படும்." },
   staffMaster: { en: "Staff Master", ta: "பணியாளர் மூலத் தரவு" },
   id: { en: "ID", ta: "ஐடி" },
   name: { en: "Name", ta: "பெயர்" },
@@ -1619,6 +1637,11 @@ const I18N = {
   repKpiWorkflowPerf: { en: "🎯 KPI / Workflow Performance", ta: "🎯 KPI / பணிப்பாய்வு செயல்திறன்" },
   repSectionPerf: { en: "🏢 Section Performance", ta: "🏢 பிரிவு செயல்திறன்" },
   repDateRangePerf: { en: "📅 Date Range Performance", ta: "📅 தேதி வரம்பு செயல்திறன்" },
+  repStaffContribution: { en: "Staff Contribution vs Target", ta: "Staff பங்களிப்பு vs Target" },
+  colStaffQty: { en: "Staff Qty", ta: "Staff அளவு" },
+  colPctOfTarget: { en: "% of Monthly Target", ta: "Monthly Target-ல் %" },
+  colShareOfWorkflow: { en: "Share of Workflow %", ta: "Workflow-ல் பங்கு %" },
+  colWorkflowActual: { en: "Workflow Total Actual", ta: "Workflow மொத்த Actual" },
   repMonthlyTargetAch: { en: "📆 Monthly Target & Achievement", ta: "📆 மாதாந்திர இலக்கு & சாதனை" },
   repStaffAppraisal: { en: "⭐ Staff Appraisal", ta: "⭐ பணியாளர் மதிப்பீடு" },
   repApprovalRegister: { en: "✅ Approval / Working Register", ta: "✅ ஒப்புதல் / பணி பதிவேடு" },
@@ -1738,6 +1761,7 @@ const I18N = {
   viewMyTrend: { en: "📈 My HR Appraisal Trend", ta: "📈 எனது HR மதிப்பீட்டு போக்கு" },
   dashDateRangeLabel: { en: "Date Range", ta: "தேதி வரம்பு" },
   dashRangeThisMonth: { en: "This Month", ta: "இந்த மாதம்" },
+  dashRangeSelectMonth: { en: "Select Month", ta: "மாதம் தேர்வு" },
   dashRangeLast60: { en: "Last 60 Days", ta: "கடந்த 60 நாட்கள்" },
   approvedEntriesRange: { en: "Approved Entries", ta: "அங்கீகரிக்கப்பட்ட பதிவுகள்" },
   totalKpiPctRange: { en: "Total KPI %", ta: "மொத்த KPI %" },
@@ -1867,11 +1891,46 @@ function hasTeamWorkflows(activityId) {
 // loads and renders normally. Fix: retry a sessionExpired failure once after
 // a short delay before treating it as real; only a call that fails twice in
 // a row (or a genuinely stale/idle-timed-out session) actually logs out.
-async function callApi(action, params, _retried, _transportRetry, _retryStartedAt) {
+const _apiCache = new Map();
+const API_CACHEABLE = new Set(['getDashboard','getWorkingRegister','getEntryGroups','getAttendance','getLeaves','getMyScore','getFullAppraisal','getMonthlyTargets','getMonthlyWorkflowBalances','getTargetDashboard','getDisciplinaryActions','getMasters','getAppraisal','getRecognitions','getManualScores','getTrainingRecords','getHRManagementSummary','getHRDashboard','getHRLiveDashboard','getPendingAttendanceVerification']);
+// REQUEST QUEUE (Sep 2026): Apps Script's echo URL intermittently 404s when many
+// calls are in flight together (e.g. page load). Limit concurrent API calls so
+// the rest wait their turn. login/runBackupNow bypass the queue.
+const _API_MAX_CONCURRENT = 2;
+let _apiActive = 0;
+const _apiWaiters = [];
+function _apiAcquire() {
+  if (_apiActive < _API_MAX_CONCURRENT) { _apiActive++; return Promise.resolve(); }
+  return new Promise(resolve => _apiWaiters.push(resolve));
+}
+function _apiRelease() {
+  const next = _apiWaiters.shift();
+  if (next) next(); else _apiActive--;
+}
+async function callApi(action, params, _retried, _transportRetry) {
   if (!API_URL || API_URL.indexOf('PASTE_') === 0) {
     throw new Error('Backend not connected yet. Deploy code.gs and set API_URL (see SETUP.md).');
   }
   params = params || {};
+  // SPEED (Sep 2026): short browser-side cache for read calls, so going back to a
+  // page opened in the last 60s is instant. ANY write clears it, so a user never
+  // sees data older than their own last action.
+  const _ck = action + JSON.stringify(params);
+  const _isRead = /^get/.test(action);
+  if (!_retried && !_transportRetry) {
+    if (_isRead && API_CACHEABLE.has(action)) {
+      const hit = _apiCache.get(_ck);
+      if (hit && Date.now() - hit.t < 60000) return JSON.parse(hit.v);
+    } else if (!_isRead && action !== 'login' && action !== 'ping' && action !== 'warm') {
+      _apiCache.clear();
+    }
+  }
+  // RETRY SAFETY (Sep 2026): every write carries a one-time request id, reused on
+  // automatic retries. The server remembers it, so a retry after an echo-404 never
+  // saves the same entry twice.
+  if (!_isRead && action !== 'login' && !params.reqId) {
+    params.reqId = Date.now() + '_' + Math.random().toString(36).slice(2);
+  }
   // SECURITY (see code.gs handle()): every action except 'login' must carry
   // the session token issued at login - the backend uses it to look up the
   // real user/role server-side and ignores/overwrites any actorRole,
@@ -1891,14 +1950,30 @@ async function callApi(action, params, _retried, _transportRetry, _retryStartedA
   // existing sessionExpired attempt counter (_retried) further down.
   const transportAttempt = _transportRetry || 0;
   let res, rawText;
+  // TIMEOUT (Sep 2026): an Apps Script call that hits the echo-404 can hang ~15s
+  // before failing. Cancel a stuck call early and let the retry below run.
+  // Reads: 8s (+6s per retry). Writes: 30s (safe - the server de-duplicates by reqId).
+  // login and backup are never cancelled.
+  const _noAbort = (action === 'login' || action === 'runBackupNow');
+  let _slotHeld = !_noAbort;
+  const _releaseSlot = () => { if (_slotHeld) { _slotHeld = false; _apiRelease(); } };
+  if (_slotHeld) await _apiAcquire();
+  const _ctrl = new AbortController();
+  const _abortTimer = _noAbort ? null :
+    setTimeout(() => _ctrl.abort(), (_isRead ? 8000 : 30000) + transportAttempt * 6000);
   try {
     res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight on Apps Script
-      body: JSON.stringify({ action, params })
+      body: JSON.stringify({ action, params }),
+      signal: _ctrl.signal
     });
     rawText = await res.text();
+    if (_abortTimer) clearTimeout(_abortTimer);
+    _releaseSlot();
   } catch (netErr) {
+    if (_abortTimer) clearTimeout(_abortTimer);
+    _releaseSlot();
     if (transportAttempt < 2) {
       await new Promise(r => setTimeout(r, 400 * (transportAttempt + 1))); // 400ms, 800ms
       return callApi(action, params, _retried, transportAttempt + 1);
@@ -1929,22 +2004,18 @@ async function callApi(action, params, _retried, _transportRetry, _retryStartedA
   }
   if (!out.ok) {
     if (out.sessionExpired) {
-      // RETRY-WITH-BACKOFF (Sep 2026, widened): the old 3-try/~3s budget
-      // wasn't enough to outlast CacheService's cross-instance propagation
-      // lag right after login - most visibly right after a forced password
-      // change, where the user is still sitting on the "set a new password"
-      // modal and a background call (notifications poll, idle check, etc.)
-      // would hit this path, run out of retries in ~3s, and log them out
-      // mid-type even though the session was perfectly valid. Now retries
-      // for up to SESSION_RETRY_BUDGET_MS (~120s) with the delay per
-      // attempt capped at 5s, instead of stopping after a fixed 3 tries.
-      const SESSION_RETRY_BUDGET_MS = 120000;
+      // RETRY-WITH-BACKOFF (Aug 2026 hardening): a single 500ms retry wasn't
+      // always enough to outlast CacheService's cross-instance propagation
+      // lag right after login, especially on a cold-started backend
+      // instance - that left MASTERS empty (Master Data / Working Register
+      // both depend on it) even though the session was perfectly valid.
+      // _retried is now an attempt COUNTER (0,1,2,...) instead of a boolean;
+      // up to 3 retries with increasing delay before we accept the session
+      // is genuinely gone and log out.
       const attempt = _retried || 0;
-      const startedAt = _retryStartedAt || Date.now();
-      const delay = Math.min(5000, 500 * (attempt + 1));
-      if (action !== 'login' && (Date.now() - startedAt) < SESSION_RETRY_BUDGET_MS) {
-        await new Promise(r => setTimeout(r, delay));
-        return callApi(action, params, attempt + 1, _transportRetry, startedAt);
+      if (attempt < 3 && action !== 'login') {
+        await new Promise(r => setTimeout(r, 500 * (attempt + 1))); // 500ms, 1000ms, 1500ms
+        return callApi(action, params, attempt + 1);
       }
       logout();
       throw new Error('Your session expired. Please log in again.');
@@ -1964,6 +2035,7 @@ async function callApi(action, params, _retried, _transportRetry, _retryStartedA
   // no mouse/keyboard involved) - keep the idle clock in sync with what the
   // backend just did (resolveSession() there already refreshed the TTL).
   if (typeof markActivity === 'function' && action !== 'login') lastActivityAt = Date.now();
+  if (_isRead && API_CACHEABLE.has(action)) _apiCache.set(_ck, { t: Date.now(), v: JSON.stringify(out.data === undefined ? null : out.data) });
   return out.data;
 }
 
@@ -2022,28 +2094,10 @@ async function submitChangePassword() {
   const newPassword = document.getElementById('cpNewPassword').value;
   const confirmPassword = document.getElementById('cpConfirmPassword').value;
   const errEl = document.getElementById('cpError');
-  const btn = document.getElementById('cpSaveBtn');
-  errEl.style.color = '#b00020';
   errEl.textContent = '';
   if (!oldPassword || !newPassword) { errEl.textContent = T('enterCreds'); return; }
   if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) { errEl.textContent = T('passwordTooShort'); return; }
   if (newPassword !== confirmPassword) { errEl.textContent = T('passwordsDontMatch'); return; }
-  // UX FIX (Sep 2026): this call used to give ZERO visible feedback while it
-  // was in flight - no disabled button, no spinner, no status text - unlike
-  // doLogin(). callApi()'s own sessionExpired retry logic (see callApi
-  // comments) silently retries for up to 120s with growing delays, and that
-  // retry is MOST LIKELY to trigger right here - a forced password-change
-  // modal appears seconds after a fresh login, right when the session token
-  // is still propagating across Apps Script's CacheService instances. With
-  // no loading state, that silent retry looked exactly like "nothing
-  // happens" when Save was clicked, even though it usually resolved on its
-  // own a few seconds later. Now the button disables and shows a status
-  // message immediately, and switches to a reassuring note if it runs long.
-  btn.disabled = true; btn.textContent = T('savingPassword');
-  const slowNoteTimer = setTimeout(() => {
-    errEl.style.color = 'var(--coffee-700)';
-    errEl.textContent = T('stillVerifyingSession');
-  }, 3000);
   try {
     await callApi('changePassword', { oldPassword, newPassword });
     SESSION.mustChangePassword = false;
@@ -2051,20 +2105,7 @@ async function submitChangePassword() {
     document.getElementById('changePasswordModal').dataset.forced = '';
     document.getElementById('changePasswordModal').style.display = 'none';
     toast(T('passwordChanged'));
-    // FIX (Sep 2026): a forced first-login change never used to actually
-    // finish entering the app - enterApp() had already stopped short (see
-    // its comment) because Master Data can't load until the password is
-    // changed. Now that it just succeeded, pick up exactly where enterApp()
-    // left off. Guarded by appBooted so a VOLUNTARY password change (made
-    // from inside an already-running app) doesn't reload everything again.
-    if (!appBooted) { await finishEnteringApp(); }
-  } catch (e) {
-    errEl.style.color = '#b00020';
-    errEl.textContent = e.message;
-  } finally {
-    clearTimeout(slowNoteTimer);
-    btn.disabled = false; btn.textContent = T('saveNewPassword');
-  }
+  } catch (e) { errEl.textContent = e.message; }
 }
 
 
@@ -2074,8 +2115,10 @@ function logout() {
   document.getElementById('notifBellWrap').style.display = 'none';
   stopIdleWatch();
   SESSION = null;
+  _apiCache.clear();
   hrInited = false;
   sessionStorage.removeItem('kpi_session');
+  sessionStorage.removeItem('kpi_masters');
   // Best-effort - invalidate the token server-side too, so it can't still be
   // replayed after the user has logged out. Fire-and-forget: logout must
   // still work locally even if this call fails (e.g. offline).
@@ -2093,13 +2136,7 @@ const NAV_ITEMS = [
   { id: 'targets', label: '🎯 Monthly Targets', labelTa: '🎯 மாதாந்திர இலக்குகள்', roles: ['Manager'] },
   { id: 'targetStatus', label: '📈 Target Status', labelTa: '📈 இலக்கு நிலை', roles: ['Manager', 'Staff'] },
   { id: 'approvals', label: '✅ Approvals', labelTa: '✅ ஒப்புதல்கள்', roles: ['Manager'] },
-  // Sep 2026: Workflow Master editing moved from Manager to HR-only, as part
-  // of Section/Activity/Workflow Master becoming HR's "global control" while
-  // each Manager is scoped to their own Section (see Code.gs requireHR()
-  // guards on updateWorkflow/addSection/updateSection/addActivity/
-  // updateActivity, and applyManagerSectionScopeToStaffList_()-based
-  // restrictions on Approvals/Dashboard/Reports/Monthly Targets).
-  { id: 'editWorkflow', label: '⚙️ Edit Workflow', labelTa: '⚙️ பணிப்பாய்வு திருத்தம்', roles: ['HR'] },
+  { id: 'editWorkflow', label: '⚙️ Edit Workflow', labelTa: '⚙️ பணிப்பாய்வு திருத்தம்', roles: ['Manager'] },
   { id: 'attendance', label: '🗓️ Attendance', labelTa: '🗓️ வருகைப் பதிவு', roles: ['Manager', 'Staff'] },
   { id: 'leave', label: '🌴 Leave', labelTa: '🌴 விடுப்பு', roles: ['Manager', 'Staff'] },
   { id: 'myMemos', label: '📄 My Memos', labelTa: '📄 எனது மெமோக்கள்', roles: ['Staff'] },
@@ -2108,11 +2145,7 @@ const NAV_ITEMS = [
   { id: 'scoreBreakdown', label: '🔍 Score Breakdown', labelTa: '🔍 மதிப்பெண் விவரம்', roles: ['Manager'] },
   { id: 'hrAppraisal', label: '🎖️ HR Appraisal', labelTa: '🎖️ HR மதிப்பீடு', roles: ['Manager', 'HR'] },
   { id: 'reports', label: '📁 Reports', labelTa: '📁 அறிக்கைகள்', roles: ['Manager'] },
-  // Sep 2026: Masters is now shared by both roles, but shows different
-  // sections to each - see applyMastersRoleUI(): Manager sees Staff Master
-  // only (their own Section); HR sees Section/Activity/Workflow + Staff
-  // Master (every Section).
-  { id: 'masters', label: '⚙️ Master Data', labelTa: '⚙️ மூல தரவு', roles: ['Manager', 'HR'] }
+  { id: 'masters', label: '⚙️ Master Data', labelTa: '⚙️ மூல தரவு', roles: ['Manager'] }
 ];
 
 function navLabel(n) { return (CURRENT_LANG === 'ta' && n.labelTa) ? n.labelTa : n.label; }
@@ -2131,29 +2164,8 @@ function applyHRRoleUI() {
   });
 }
 
-// SECTION-WISE MANAGER SCOPING (Sep 2026): Section/Activity/Workflow Master
-// management is HR-only "global control" now (see Code.gs requireHR()
-// guards) - a Manager sees only the Staff Master card here (their own
-// Section only, enforced server-side by requireManagerOwnSection_()). This
-// is UI convenience only, same spirit as applyHRRoleUI() above - the real
-// gate is server-side.
-function applyMastersRoleUI() {
-  const isHR = SESSION.role === 'HR';
-  ['departmentMasterCard', 'sectionMasterCard', 'activityMasterCard', 'workflowMasterCard'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = isHR ? '' : 'none';
-  });
-  const sub = document.getElementById('mastersSubText');
-  if (sub) {
-    sub.textContent = isHR
-      ? T('mastersSubHR')
-      : T('mastersSubManager');
-  }
-}
-
 function buildNav() {
   applyHRRoleUI();
-  applyMastersRoleUI();
   applyAttendanceRoleUI();
   const items = NAV_ITEMS.filter(n => n.roles.includes(SESSION.role));
   const sidebar = document.getElementById('sidebar');
@@ -2207,30 +2219,29 @@ function showView(id) {
 // Returns true only once MASTERS looks complete; false if every attempt
 // failed, so the caller can stop instead of silently building the app on
 // top of empty master data.
+function _applyMasters(m) {
+  MASTERS = m;
+  // Backend (HR_POLICY in code.gs) is the single source of truth for
+  // these lists (audit item 18) - overwrite the hardcoded fallbacks
+  // declared above as soon as the real data arrives.
+  if (MASTERS.recognitionTypes) RECOGNITION_TYPES = MASTERS.recognitionTypes;
+  if (MASTERS.memoTypes) MEMO_TYPES = MASTERS.memoTypes;
+  if (MASTERS.memoCategories) MEMO_CATEGORIES = MASTERS.memoCategories;
+  if (MASTERS.memoDecisionOptions) MEMO_DECISIONS = MASTERS.memoDecisionOptions;
+  if (MASTERS.teamWorkflowIds) TEAM_WORKFLOW_IDS = MASTERS.teamWorkflowIds;
+}
 async function loadMastersData(maxAttempts) {
-  // WIDENED (Sep 2026): 3 tries with a 700/1400ms backoff gave up in ~2s
-  // total - too fast for a cold-started Apps Script instance or a slow
-  // Sheets read, so people were landing on the blocking "Could not load
-  // Staff / Activity / Workflow data" screen on an otherwise-fine backend
-  // that just needed a bit more time to warm up. Now retries up to 8 times
-  // with the per-attempt delay capped at 5s, spending up to ~30s total
-  // before giving up and showing that screen.
-  maxAttempts = maxAttempts || 8;
+  maxAttempts = maxAttempts || 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const m = await callApi('getMasters', {});
       const complete = m && (m.staff && m.staff.length) &&
         (m.activities && m.activities.length) && (m.workflows && m.workflows.length);
       if (complete) {
-        MASTERS = m;
-        // Backend (HR_POLICY in code.gs) is the single source of truth for
-        // these lists (audit item 18) - overwrite the hardcoded fallbacks
-        // declared above as soon as the real data arrives.
-        if (MASTERS.recognitionTypes) RECOGNITION_TYPES = MASTERS.recognitionTypes;
-        if (MASTERS.memoTypes) MEMO_TYPES = MASTERS.memoTypes;
-        if (MASTERS.memoCategories) MEMO_CATEGORIES = MASTERS.memoCategories;
-        if (MASTERS.memoDecisionOptions) MEMO_DECISIONS = MASTERS.memoDecisionOptions;
-        if (MASTERS.teamWorkflowIds) TEAM_WORKFLOW_IDS = MASTERS.teamWorkflowIds;
+        _applyMasters(m);
+        // SPEED (Sep 2026): remember Masters for this tab so a browser refresh (F5)
+        // can open the app instantly and refresh Masters in the background.
+        try { sessionStorage.setItem('kpi_masters', JSON.stringify({ t: Date.now(), u: SESSION && SESSION.staffId, m })); } catch (e) {}
         return true;
       }
       // Came back ok but incomplete (e.g. empty Staff/Activity/Workflow) -
@@ -2243,7 +2254,7 @@ async function loadMastersData(maxAttempts) {
       if (!SESSION) return false;
       if (attempt === maxAttempts) toast(e.message);
     }
-    if (attempt < maxAttempts) await new Promise(r => setTimeout(r, Math.min(5000, 700 * attempt)));
+    if (attempt < maxAttempts) await new Promise(r => setTimeout(r, 700 * attempt));
   }
   return false;
 }
@@ -2268,28 +2279,6 @@ async function enterApp() {
   document.getElementById('app').style.display = 'flex';
   document.getElementById('whoLabel').textContent = SESSION.staffName + ' · ' + SESSION.role;
 
-  // FORCED-PASSWORD-CHANGE FIX (Sep 2026): getMasters() (called just below,
-  // via loadMastersData()) is blocked server-side for as long as
-  // mustChangePassword is true - every attempt comes back with "Password
-  // change required before using the application.", not a session/network
-  // error. loadMastersData() had no way to tell that apart from a real
-  // hiccup, so it burned through all its retries (~20-30s of guaranteed
-  // failures) and then called showMastersLoadError(), which replaces
-  // #app's ENTIRE innerHTML - and #changePasswordModal lives inside #app,
-  // so that destroyed the only way the person had to actually change their
-  // password. Reloading just repeated the same dead end forever.
-  // Fix: stop here and let doLogin()'s openChangePasswordModal(true) show
-  // the form untouched; finishEnteringApp() (below) runs the real boot
-  // sequence once submitChangePassword() actually succeeds.
-  if (SESSION.mustChangePassword) return;
-  await finishEnteringApp();
-}
-
-// Split out of enterApp() (see the comment there) so it can be (re)run
-// once a forced password change succeeds, without re-doing the
-// loginScreen/app-shell/whoLabel setup enterApp() already did.
-let appBooted = false;
-async function finishEnteringApp() {
   // BUGFIX (Aug 2026): getMasters() failures used to be handled with a
   // single attempt + a catch block that only bailed out if SESSION had
   // been cleared (i.e. a genuine session-expiry, which callApi() itself
@@ -2307,7 +2296,22 @@ async function finishEnteringApp() {
   // get a complete Masters set, we stop here and show a blocking retry
   // screen instead of quietly continuing with a half-built app.
   ensureChartJs().catch(() => {}); // warm Chart.js in parallel with getMasters(); dashboard charts need it right after
-  const ok = await loadMastersData();
+  let ok = false;
+  try {
+    // SPEED (Sep 2026): browser refresh (F5) - use the Masters remembered for this
+    // tab (max 30 min old, same user, verified complete) so the app opens at once,
+    // then refresh them from the server in the background.
+    const raw = sessionStorage.getItem('kpi_masters');
+    const c = raw ? JSON.parse(raw) : null;
+    if (c && c.u === SESSION.staffId && Date.now() - c.t < 30 * 60 * 1000 && c.m &&
+        c.m.staff && c.m.staff.length && c.m.activities && c.m.activities.length &&
+        c.m.workflows && c.m.workflows.length) {
+      _applyMasters(c.m);
+      ok = true;
+      loadMastersData().catch(() => {});
+    }
+  } catch (e) { ok = false; }
+  if (!ok) ok = await loadMastersData();
   if (!ok) {
     showMastersLoadError();
     return;
@@ -2318,7 +2322,6 @@ async function finishEnteringApp() {
   document.getElementById('attDate').valueAsDate = new Date();
   initNotifications();
   startIdleWatch();
-  appBooted = true;
 }
 
 /* ============================================================
@@ -2530,7 +2533,6 @@ document.addEventListener('click', (e) => {
     case 'openMyMemoDetail': openMyMemoDetail(id); break;
     case 'submitMyMemoReply': submitMyMemoReply(id); break;
     case 'openStaffForm': openStaffForm(id); break;
-    case 'openDepartmentForm': openDepartmentForm(id); break;
     case 'openSectionForm': openSectionForm(id); break;
     case 'openActivityForm': openActivityForm(id); break;
   }
@@ -2588,17 +2590,30 @@ let DASHBOARD_RANGE_MODE = 'thisMonth';
 
 function onDashboardRangeChange() {
   DASHBOARD_RANGE_MODE = document.getElementById('dashRangeSelect').value;
+  const mi = document.getElementById('dashMonth');
+  if (DASHBOARD_RANGE_MODE === 'month' && mi && !mi.value) mi.value = currentMonthInputValue();
   loadDashboard();
 }
 
 async function loadDashboard() {
   const sel = document.getElementById('dashRangeSelect');
   if (sel) sel.value = DASHBOARD_RANGE_MODE; // keep the dropdown in sync if Dashboard was re-entered via nav
+  const monthWrap = document.getElementById('dashMonthWrap');
+  if (monthWrap) monthWrap.style.display = DASHBOARD_RANGE_MODE === 'month' ? '' : 'none';
 
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // local calendar day, no time component
-  let fromDate;
-  if (DASHBOARD_RANGE_MODE === 'last60') {
+  let fromDate, toDateOverride = null;
+  if (DASHBOARD_RANGE_MODE === 'month') {
+    // Whole selected calendar month (1st -> last day). The current month is
+    // capped at today so it matches "This Month". Whole months keep the
+    // Monthly Target maths exact (no part-month Target distortion).
+    const mv = (document.getElementById('dashMonth') || {}).value || currentMonthInputValue();
+    const my = Number(mv.slice(0, 4)), mm = Number(mv.slice(5, 7));
+    fromDate = new Date(my, mm - 1, 1);
+    const lastDay = new Date(my, mm, 0);
+    toDateOverride = lastDay > today ? today : lastDay;
+  } else if (DASHBOARD_RANGE_MODE === 'last60') {
     // Rolling 60 calendar days INCLUSIVE of today: today - 59 days gives
     // exactly 60 days in the [from, to] range (e.g. to=15-Sep -> from=17-Jul).
     fromDate = new Date(today);
@@ -2607,7 +2622,7 @@ async function loadDashboard() {
     fromDate = new Date(now.getFullYear(), now.getMonth(), 1); // 1st of current month
   }
   const from = localDateStr(fromDate);
-  const to = localDateStr(today);
+  const to = localDateStr(toDateOverride || today);
   const p = { from, to };
   if (SESSION.role === 'Staff') p.staffId = SESSION.staffId;
   let d;
@@ -2635,14 +2650,14 @@ async function loadDashboard() {
   // Card labels say "(MTD)" only in "This Month" mode - showing that
   // wording while actually displaying a 60-day window would be
   // misleading, so swap to the generic (no-suffix) label in that mode.
-  const entriesLabel = DASHBOARD_RANGE_MODE === 'last60' ? T('approvedEntriesRange') : T('approvedEntriesMtd');
-  const kpiPctLabel = DASHBOARD_RANGE_MODE === 'last60' ? T('totalKpiPctRange') : T('totalKpiPctMtd');
+  const entriesLabel = DASHBOARD_RANGE_MODE !== 'thisMonth' ? T('approvedEntriesRange') : T('approvedEntriesMtd');
+  const kpiPctLabel = DASHBOARD_RANGE_MODE !== 'thisMonth' ? T('totalKpiPctRange') : T('totalKpiPctMtd');
 
   document.getElementById('dashStats').innerHTML = `
     <div class="stat-card"><div class="label">${entriesLabel}</div><div class="value">${d.totalEntries}</div></div>
     <div class="stat-card alt"><div class="label">${kpiPctLabel}</div><div class="value">${fnum(d.totalKpiPct)}%</div>${qtyHtml}${trendHtml}</div>
     <div class="stat-card"><div class="label">${T('pendingApprovals')}</div><div class="value">${d.pendingApprovals}</div></div>
-    <div class="stat-card alt"><div class="label">${T('role')}</div><div class="value" style="font-size:18px">${escapeHtml(SESSION.role)}</div></div>
+    <div class="stat-card alt"><div class="label">${T('role')}</div><div class="value" style="font-size:18px">${SESSION.role}</div></div>
   `;
   // Achievement % charts (the old marks charts were removed). A response
   // cached before the backend update may not carry these fields yet, so fall
@@ -2855,12 +2870,6 @@ function getSessionSectionId() {
   const s = MASTERS.staff.find(x => x['Staff ID'] === SESSION.staffId);
   return s ? (s['Section'] || '') : '';
 }
-// DEPARTMENT-WISE SCOPING (Sep 2026, Phase 2): mirrors getSessionSectionId()
-// one level up - Company -> Department -> Section -> Staff.
-function getSessionDepartmentId() {
-  const s = MASTERS.staff.find(x => x['Staff ID'] === SESSION.staffId);
-  return s ? (s['Department'] || '') : '';
-}
 function workflowAppliesToSection(w, sectionId) {
   const raw = (w['Sections'] || '').trim();
   if (!raw || raw.toLowerCase() === 'all') return true; // unset/"All" = every Section
@@ -2939,7 +2948,7 @@ function renderChecklistRows() {
       <div class="wf-count-box form-row" style="display:none;">
         <div><label for="wfCount_${escapeHtml(w['Workflow ID'])}">Count</label><input type="number" id="wfCount_${escapeHtml(w['Workflow ID'])}" class="wf-count" min="0" step="1" value="0"></div>
         <div><label for="wfUnit_${escapeHtml(w['Workflow ID'])}">Unit</label><input type="text" id="wfUnit_${escapeHtml(w['Workflow ID'])}" value="${escapeHtml(w['Unit'])}" readonly></div>
-        <div><label for="wfRemarks_${escapeHtml(w['Workflow ID'])}">Remarks</label><input type="text" id="wfRemarks_${escapeHtml(w['Workflow ID'])}" class="wf-remarks" placeholder="Optional"></div>
+        <div><label for="wfRemarks_${escapeHtml(w['Workflow ID'])}">Remarks *</label><input type="text" id="wfRemarks_${escapeHtml(w['Workflow ID'])}" class="wf-remarks" placeholder="Required to Submit"></div>
       </div>
       ${isTeam ? `
       <div class="reg-co-staff-wrap" style="display:none;margin-top:10px;">
@@ -2980,7 +2989,7 @@ async function saveWorkingEntries(mode) {
     // for them and the backend falls back to crediting the logged-in user.
     const assignSel = row.querySelector('.reg-assign-staff');
     const assignedStaffId = (!isTeam && assignSel) ? assignSel.value : '';
-    // Per-workflow Remarks (optional) - falls back to the shared "Remarks"
+    // Per-workflow Remarks (MANDATORY on Submit) - falls back to the shared "Remarks"
     // field at the bottom of the form if this row's own Remarks is blank.
     const rowRemarksEl = row.querySelector('.wf-remarks');
     const remarks = (rowRemarksEl && rowRemarksEl.value) ? rowRemarksEl.value : sharedRemarks;
@@ -2998,14 +3007,25 @@ async function saveWorkingEntries(mode) {
     toast(T('enterCountAbove0') + ' ' + zeroCountWfs.join(', '));
     return;
   }
-  try {
-    const r = await callApi('addWorkingEntries', { staffId: SESSION.staffId, staffName: SESSION.staffName, date, lines });
-    if (mode === 'Submitted') {
-      await callApi('submitEntryGroup', { staffId: SESSION.staffId, groupId: r.groupId });
-      toast(T('submittedForApproval'));
-    } else {
-      toast(T('savedAsDraft'));
+  // MANDATORY REMARKS: on Submit, every ticked workflow must have Remarks
+  // (its own, or the shared one at the bottom). Draft saving stays free.
+  // Checked BEFORE addWorkingEntries so a failed check never leaves a
+  // half-created Draft behind. The server re-checks in submitEntryGroup().
+  if (mode === 'Submitted') {
+    const noRemarksWfs = lines.filter(l => !String(l.remarks || '').trim()).map(l => {
+      const wf = MASTERS.workflows.find(w => w['Workflow ID'] === l.workflowId);
+      return wf ? wf['Workflow Name'] : l.workflowId;
+    });
+    if (noRemarksWfs.length) {
+      toast(T('remarksRequiredFor') + ' ' + noRemarksWfs.join(', '));
+      return;
     }
+  }
+  try {
+    // SPEED (Sep 2026): Submit is now ONE server call (rows are saved directly as
+    // Submitted) instead of addWorkingEntries + submitEntryGroup.
+    await callApi('addWorkingEntries', { staffId: SESSION.staffId, staffName: SESSION.staffName, date, lines, submit: mode === 'Submitted' });
+    toast(mode === 'Submitted' ? T('submittedForApproval') : T('savedAsDraft'));
     document.getElementById('regActivity').value = '';
     document.getElementById('regRemarks').value = '';
     document.getElementById('wfChecklistWrap').style.display = 'none';
@@ -3075,7 +3095,7 @@ async function loadMyDrafts() {
             <div style="font-weight:600;color:var(--coffee-700);">${escapeHtml(wg.workflowName)}</div>
             <div>Staff: <strong>${escapeHtml(wg.staffName)}</strong></div>
             <div>Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}</div>
-            <div>Actual: <strong>${escapeHtml(wg.actual)}</strong>${wg.remarks ? ' &middot; Remarks: ' + escapeHtml(wg.remarks) : ''}</div>
+            <div>Actual: <strong>${wg.actual}</strong>${wg.remarks ? ' &middot; Remarks: ' + escapeHtml(wg.remarks) : ''}</div>
           </div>
         `).join('')}
       </div>
@@ -3141,7 +3161,7 @@ async function openEditDraft(groupId) {
         <div style="font-size:12px;color:var(--coffee-500);margin-bottom:6px;">Staff: <strong>${escapeHtml(wg.staffName)}</strong> &middot; Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}</div>
         <div class="form-row">
           <div><label for="edActual_${escapeHtml(wg.workflowId)}">Actual</label><input type="number" id="edActual_${escapeHtml(wg.workflowId)}" min="0" class="edit-draft-actual" data-wfid="${escapeHtml(wg.workflowId)}" value="${wg.actual}"></div>
-          <div><label for="edRemarks_${escapeHtml(wg.workflowId)}">Remarks</label><input type="text" id="edRemarks_${escapeHtml(wg.workflowId)}" class="edit-draft-remarks" data-wfid="${escapeHtml(wg.workflowId)}" value="${escapeHtml(wg.remarks || '')}"></div>
+          <div><label for="edRemarks_${escapeHtml(wg.workflowId)}">Remarks *</label><input type="text" id="edRemarks_${escapeHtml(wg.workflowId)}" class="edit-draft-remarks" data-wfid="${escapeHtml(wg.workflowId)}" value="${escapeHtml(wg.remarks || '')}"></div>
         </div>
       </div>
     `).join('')}
@@ -3173,6 +3193,23 @@ async function saveEditDraft() {
 }
 
 const REGISTER_VISIBLE_DAYS = 90;
+// Working Register display window (hours). Approved lines stay visible for
+// 12 h after approval, Rejected lines for 36 h after rejection. Draft /
+// Submitted lines stay visible until approved/rejected; Draft lines are not
+// shown here ("My Drafts" card). Display only - data, reports and the
+// Correct Approved Qty card are unaffected.
+const REGISTER_APPROVED_HOURS = 12;
+const REGISTER_REJECTED_HOURS = 36;
+function registerLineVisible(r) {
+  const st = r['Approval Status'];
+  if (st === 'Draft') return false;   // Drafts live in the "My Drafts" card
+  if (st === 'Submitted') return true; // pending approval: visible to Staff and Manager until decided
+  const hrs = st === 'Approved' ? REGISTER_APPROVED_HOURS : st === 'Rejected' ? REGISTER_REJECTED_HOURS : null;
+  if (hrs === null) return true;
+  const ts = new Date(st === 'Approved' ? r['Approved On'] : r['Rejected On']).getTime();
+  if (!isFinite(ts)) return false;
+  return (Date.now() - ts) <= hrs * 3600 * 1000;
+}
 async function loadRegister() {
   // BUGFIX (Sep 2026): "Cannot read properties of null (reading 'role')".
   // If the session expires (callApi() -> logout() sets SESSION = null) while
@@ -3180,6 +3217,7 @@ async function loadRegister() {
   // SESSION.role. Bail out quietly whenever there is no session.
   if (!SESSION) return;
   populateRegActivitySelect();
+  initCorrectQtyCard();
   loadMyDrafts();
   const p = SESSION.role === 'Staff' ? { staffId: SESSION.staffId } : {};
   // PERF (Sep 2026, item 3): only fetch the last REGISTER_VISIBLE_DAYS days.
@@ -3220,7 +3258,7 @@ async function loadRegister() {
     const mates = rows.filter(r => r['Team Ref No'] === row['Team Ref No'] && r['Staff ID'] !== row['Staff ID']);
     return mates.length ? escapeHtml(mates.map(m => m['Staff Name']).join(', ')) : '—';
   };
-  tbody.innerHTML = rows.slice(0, 50).map(r => {
+  tbody.innerHTML = rows.filter(registerLineVisible).map(r => {
     const split = Number(r['Team Split Size']) > 1;
     // Rejected (or any non-Approved) rows never earn KPI credit - always show
     // 0 regardless of what the raw KPI Score / team split math would give.
@@ -3228,7 +3266,7 @@ async function loadRegister() {
       ? '0'
       : (split
         ? `${escapeHtml(r['Effective KPI Score'])} <span style="color:var(--coffee-500);font-size:11px;">(${escapeHtml(r['KPI Score'])} ÷ ${escapeHtml(r['Team Split Size'])})</span>`
-        : escapeHtml(r['KPI Score']));
+        : r['KPI Score']);
     return `
     <tr>
       <td>${fmtDate(r['Date'])}</td><td>${escapeHtml(r['Activity Name'])}</td><td>${escapeHtml(r['Workflow Name'])}</td><td>${escapeHtml(r['Staff Name'])}</td>
@@ -3284,7 +3322,7 @@ function renderApprovalGroupCard(g) {
         <div style="font-size:12.5px;color:var(--coffee-600);line-height:1.7;">
           Staff: <strong>${escapeHtml(wg.staffName)}</strong><br>
           Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}<br>
-          Actual: <strong>${escapeHtml(wg.actual)}</strong> &middot; Target: ${escapeHtml(wg.target)}
+          Actual: <strong>${wg.actual}</strong> &middot; Target: ${wg.target}
           ${wg.remarks ? '<br>Remarks: ' + escapeHtml(wg.remarks) : ''}
         </div>
         ${isSubmitted ? `
@@ -3490,7 +3528,7 @@ async function loadAttendance() {
   rows.sort((a, b) => new Date(b['Date']) - new Date(a['Date']));
   ATTENDANCE_ROWS_BY_KEY = {};
   const canEdit = SESSION.role === 'Manager' || SESSION.role === 'HR';
-  document.querySelector('#attendanceTable tbody').innerHTML = rows.slice(0, 50).map(r => {
+  document.querySelector('#attendanceTable tbody').innerHTML = rows.map(r => {
     const vs = verifyStatusDisplay(r['Verify Status']);
     const key = r['Staff ID'] + '|' + localDateStr(new Date(r['Date']));
     ATTENDANCE_ROWS_BY_KEY[key] = r;
@@ -3687,13 +3725,7 @@ function currentMonthInputValue() {
 function mtPopulateWorkflows() {
   const actId = document.getElementById('mtActivity').value;
   const wfSelect = document.getElementById('mtWorkflow');
-  // SECTION-WISE MANAGER SCOPING (Sep 2026): matches the backend's
-  // addMonthlyTarget()/getMonthlyTargets() rule - only offer Workflows
-  // applicable to the acting Manager's own Section (blank/"All" = every
-  // Section). HR/unrestricted Manager see every Workflow as before.
-  const mySection = SESSION.role === 'Manager' ? getSessionSectionId() : '';
-  const wfs = MASTERS.workflows.filter(w => w['Activity ID'] === actId
-    && (!mySection || workflowAppliesToSection(w, mySection)));
+  const wfs = MASTERS.workflows.filter(w => w['Activity ID'] === actId);
   wfSelect.innerHTML = '<option value="">Select</option>' + wfs.map(w =>
     `<option value="${escapeHtml(w['Workflow ID'])}">${escapeHtml(w['Workflow Name'])}</option>`).join('');
   document.getElementById('mtDefaultHint').textContent = '';
@@ -3869,8 +3901,8 @@ function scoreCardHtml(d) {
     <div class="grid grid-4">
       <div class="stat-card"><div class="label">${T('totalScore')}</div><div class="value">${d.totalScore} / ${d.totalMaxScore}</div></div>
       <div class="stat-card alt"><div class="label">${T('achievementPct')}</div><div class="value">${d.overallPct}%</div></div>
-      <div class="stat-card"><div class="label">${T('grade')}</div><div class="value">${escapeHtml(d.grade)}</div></div>
-      <div class="stat-card alt"><div class="label">${T('overallPerformance')}</div><div class="value" style="font-size:15px">${escapeHtml(d.rating)}</div></div>
+      <div class="stat-card"><div class="label">${T('grade')}</div><div class="value">${d.grade}</div></div>
+      <div class="stat-card alt"><div class="label">${T('overallPerformance')}</div><div class="value" style="font-size:15px">${d.rating}</div></div>
     </div>
     <div class="card">
       <div class="table-wrap"><table><thead><tr>
@@ -4047,7 +4079,7 @@ async function runFormulaVerification() {
     badge.innerHTML = '<span style="color:' + statusColor(result.overall) + '">' +
       T('fvValidation') + ': ' + statusLabel(result.overall) + '</span>';
     tbody.innerHTML = result.rows.map(r => `<tr>
-        <td>${escapeHtml(r.check)}</td><td>${escapeHtml(r.expected)}</td><td>${escapeHtml(r.actual)}</td>
+        <td>${r.check}</td><td>${r.expected}</td><td>${r.actual}</td>
         <td style="color:${statusColor(r.status)};font-weight:700">${statusLabel(r.status)}</td>
       </tr>`).join('');
     const dupWrap = document.getElementById('fvDupWrap');
@@ -4511,6 +4543,11 @@ async function submitManualScoreEntry() {
 async function loadManualScoresTable() {
   const p = hrPeriodParams();
   if (!p.periodLabel) return;
+  // SPEED (Sep 2026): fetch the manual scores and the automatic Training scores
+  // TOGETHER (was one after the other = two waits in a row).
+  const _fullP = (p.from && p.to)
+    ? callApi('getFullAppraisal', p).catch(() => null)
+    : Promise.resolve(null);
   let rows = [];
   try { rows = await callApi('getManualScores', { periodLabel: p.periodLabel }); } catch (e) { toast(e.message); return; }
   // AUTOMATIC TRAINING (Aug 2026): 'Training Rating' is no longer written by
@@ -4519,12 +4556,10 @@ async function loadManualScoresTable() {
   // score (criteria.training) for the whole period in one call - fetch it
   // once here and key it by Staff ID for display.
   let trainingByStaff = {};
-  if (p.from && p.to) {
-    try {
-      const full = await callApi('getFullAppraisal', p);
-      full.forEach(a => trainingByStaff[a.staffId] = a.criteria.training);
-    } catch (e) { /* non-fatal - falls back to '—' below */ }
-  }
+  try {
+    const full = await _fullP;
+    if (full) full.forEach(a => trainingByStaff[a.staffId] = a.criteria.training);
+  } catch (e) { /* non-fatal - falls back to '—' below */ }
   document.querySelector('#manualScoresTable tbody').innerHTML = rows.map(r => `
     <tr><td>${escapeHtml(r['Staff Name'])}</td><td>${escapeHtml(r['Present Days'])}</td><td>${escapeHtml(r['Leave Days'])}</td>
     <td>${escapeHtml(r['Late Entries'])}</td><td>${escapeHtml(r['Early Leaving Count'])}</td><td>${escapeHtml(r['Shift Compliance %'])}</td>
@@ -4582,6 +4617,71 @@ async function loadTrainingRegisterTable() {
     <td>${fmtDate(r['Expiry Date'])}</td><td>${escapeHtml(r['Eligible'])}</td><td>${escapeHtml(r['Auto Score'])}</td>
     <td><button class="btn btn-outline btn-sm" onclick="openEditTrainingRecord('${escapeHtml(r['Training Record ID'])}')" data-i18n="edit">Edit</button></td></tr>
   `).join('') || `<tr><td colspan="10" class="empty">${T('noTrainingRecordsYet')}</td></tr>`;
+}
+
+let CORRECT_QTY_ROWS = {};
+function initCorrectQtyCard() {
+  const card = document.getElementById('cqCard');
+  if (!card) return;
+  if (!SESSION || SESSION.role !== 'Manager') { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const sSel = document.getElementById('cqStaff'), wSel = document.getElementById('cqWorkflow');
+  if (!sSel.options.length) {
+    sSel.innerHTML = MASTERS.staff.filter(x => x['Status'] !== 'Inactive')
+      .map(x => `<option value="${escapeHtml(x['Staff ID'])}">${escapeHtml(x['Staff Name'])}</option>`).join('');
+    wSel.innerHTML = MASTERS.workflows.filter(w => w['Status'] !== 'Inactive')
+      .map(w => `<option value="${escapeHtml(w['Workflow ID'])}">${escapeHtml(w['Workflow ID'] + ' - ' + w['Workflow Name'])}</option>`).join('');
+    document.getElementById('cqMonth').value = localDateStr(new Date());
+  }
+}
+
+async function loadCorrectQtyLines() {
+  const staffId = document.getElementById('cqStaff').value;
+  const wfId = document.getElementById('cqWorkflow').value;
+  const month = document.getElementById('cqMonth').value; // YYYY-MM-DD (selected date)
+  const tbody = document.querySelector('#cqTable tbody');
+  if (!staffId || !wfId || !month) { toast(T('cqPick')); return; }
+  const from = month, to = month;
+  let rows;
+  try { rows = await callApi('getWorkingRegister', { staffId: staffId, from: from, to: to }); }
+  catch (e) { toast(e.message); return; }
+  rows = rows.filter(r => r['Workflow ID'] === wfId && r['Approval Status'] === 'Approved')
+             .sort((a, b) => new Date(a['Date']) - new Date(b['Date']));
+  CORRECT_QTY_ROWS = {};
+  tbody.innerHTML = rows.map(r => {
+    CORRECT_QTY_ROWS[r['Line ID']] = r;
+    return `<tr><td>${fmtDate(r['Date'])}</td><td>${escapeHtml(String(r['Actual']))}</td>
+      <td>${Number(r['Team Split Size']) > 1 ? escapeHtml(String(r['Team Ref No'] || 'Team')) : '—'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="openCorrectQty('${escapeHtml(r['Line ID'])}')">✏️ ${T('correctQtyBtn')}</button></td></tr>`;
+  }).join('') || `<tr><td colspan="4" class="empty">${T('cqNone')}</td></tr>`;
+}
+function openCorrectQty(lineId) {
+  const r = CORRECT_QTY_ROWS[lineId];
+  if (!r) { toast(T('recordNotFound')); return; }
+  document.getElementById('cqLineId').value = lineId;
+  document.getElementById('cqSubtitle').textContent = r['Staff Name'] + ' — ' + r['Workflow Name'] + ' (' + fmtDate(r['Date']) + ')';
+  document.getElementById('cqOld').value = r['Actual'];
+  document.getElementById('cqNew').value = '';
+  document.getElementById('cqReason').value = '';
+  document.getElementById('correctQtyModal').style.display = 'flex';
+}
+
+async function saveCorrectQty() {
+  const lineId = document.getElementById('cqLineId').value;
+  const newActual = document.getElementById('cqNew').value;
+  const reason = document.getElementById('cqReason').value.trim();
+  if (newActual === '' || !isFinite(Number(newActual)) || Number(newActual) < 0) { toast(T('cqNeedQty')); return; }
+  if (!reason) { toast(T('cqNeedReason')); return; }
+  try {
+    await callApi('correctApprovedQty', {
+      actorRole: SESSION.role, actorUserId: SESSION.userId,
+      lineIds: [lineId], newActual: Number(newActual), reason: reason
+    });
+    document.getElementById('correctQtyModal').style.display = 'none';
+    toast(T('cqDone'));
+    loadCorrectQtyLines();
+    loadRegister();
+  } catch (e) { toast(e.message); }
 }
 
 function openEditTrainingRecord(recordId) {
@@ -4974,6 +5074,24 @@ const REPORT_DEFS = {
       { key: 'status', labelKey: 'status' }
     ], totals: ['monthlyTarget', 'approvedActual', 'balance', 'kpiScore']
   },
+  // STAFF CONTRIBUTION vs MONTHLY TARGET (Manager only, frontend-only, Oct 2026):
+  // one row per Month x Workflow x Staff. Workflow Monthly Target / Approved
+  // total come from getMonthlyTargetAchievementReport (the same figures as the
+  // Monthly Target & Achievement report); each Staff's quantity comes from the
+  // Approved Working Register lines. A Team job (same Team Ref No) is split
+  // equally between the staff whose Approved lines carry that Team Ref, so the
+  // staff quantities add up to the workflow's Approved Actual.
+  staffContribution: {
+    action: 'getMonthlyTargetAchievementReport', labelKey: 'repStaffContribution', managerOnly: true,
+    filters: ['date', 'section', 'staff', 'activity', 'workflow'],
+    customFetch: fetchStaffContribution,
+    columns: [
+      { key: 'month', labelKey: 'colMonth' }, { key: 'activityName', labelKey: 'activity' }, { key: 'workflowName', labelKey: 'workflow' },
+      { key: 'monthlyTarget', labelKey: 'colMonthlyTarget', fmt: 'num' }, { key: 'staffName', labelKey: 'staff' },
+      { key: 'staffQty', labelKey: 'colStaffQty', fmt: 'num' }, { key: 'pctOfTarget', labelKey: 'colPctOfTarget', fmt: 'pct' },
+      { key: 'shareOfWorkflow', labelKey: 'colShareOfWorkflow', fmt: 'pct' }, { key: 'workflowActual', labelKey: 'colWorkflowActual', fmt: 'num' }
+    ]
+  },
   staffAppraisal: {
     action: 'getStaffAppraisalReport', labelKey: 'repStaffAppraisal', filters: ['date', 'section', 'staff'],
     columns: [
@@ -5069,7 +5187,7 @@ function repFmt(val, fmt) {
 }
 
 function buildReportTypeButtons() {
-  document.getElementById('repTypeButtons').innerHTML = Object.keys(REPORT_DEFS).map(id =>
+  document.getElementById('repTypeButtons').innerHTML = Object.keys(REPORT_DEFS).filter(id => !REPORT_DEFS[id].managerOnly || (SESSION && SESSION.role === 'Manager')).map(id =>
     `<button class="btn ${id === currentReportId ? 'btn-brown' : 'btn-outline'} btn-sm" onclick="selectReportType('${id}')">${T(REPORT_DEFS[id].labelKey)}</button>`
   ).join('');
 }
@@ -5114,6 +5232,62 @@ function loadReportsView() {
   applyReportFilterVisibility();
 }
 
+async function fetchStaffContribution(params) {
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthOf = v => {
+    const m = /^(\d{4})-(\d{2})-\d{2}/.exec(String(v));
+    if (m) return MON[Number(m[2]) - 1] + '-' + m[1];
+    const d = new Date(v); return isNaN(d) ? '' : MON[d.getMonth()] + '-' + d.getFullYear();
+  };
+  const [wfRows, regRows] = await Promise.all([
+    callApi('getMonthlyTargetAchievementReport', { from: params.from, to: params.to, section: params.section, activityId: params.activityId, workflowId: params.workflowId }),
+    callApi('getWorkingRegister', { from: params.from, to: params.to })
+  ]);
+  const wfInfo = {};
+  (wfRows || []).forEach(w => { wfInfo[w.month + '|' + w.activityName + '|' + w.workflowName] = w; });
+  const sectionOf = {};
+  MASTERS.staff.forEach(x => { sectionOf[x['Staff ID']] = x['Section']; });
+  const approved = (regRows || []).filter(r => r['Approval Status'] === 'Approved');
+  // team group sizes use ALL approved lines (before any filter) so the split is right
+  const teamSize = {};
+  approved.forEach(r => { if (r['Team Ref No']) { const k = r['Workflow ID'] + '|' + r['Team Ref No']; teamSize[k] = (teamSize[k] || 0) + 1; } });
+  const agg = {};
+  approved.forEach(r => {
+    if (params.workflowId && r['Workflow ID'] !== params.workflowId) return;
+    if (params.activityId && r['Activity ID'] !== params.activityId) return;
+    if (params.section && sectionOf[r['Staff ID']] !== params.section) return;
+    const month = monthOf(r['Date']);
+    const key = month + '|' + r['Activity Name'] + '|' + r['Workflow Name'];
+    const info = wfInfo[key];
+    if (!info) return; // e.g. Attendance - not part of the target report
+    const n = r['Team Ref No'] ? (teamSize[r['Workflow ID'] + '|' + r['Team Ref No']] || 1) : 1;
+    const qty = (Number(r['Actual']) || 0) / n;
+    const a = agg[key] = agg[key] || {};
+    const st = a[r['Staff ID']] = a[r['Staff ID']] || { name: r['Staff Name'], qty: 0 };
+    st.qty += qty;
+  });
+  const out = [];
+  Object.keys(agg).forEach(key => {
+    const info = wfInfo[key];
+    const staffs = Object.keys(agg[key]).map(id => ({ id, ...agg[key][id] }))
+      .filter(x => !params.staffId || x.id === params.staffId)
+      .sort((a, b) => b.qty - a.qty);
+    const tot = Object.keys(agg[key]).reduce((t, id) => t + agg[key][id].qty, 0);
+    staffs.forEach(x => {
+      out.push({
+        month: info.month, activityName: info.activityName, workflowName: info.workflowName,
+        monthlyTarget: info.monthlyTarget, staffName: x.name,
+        staffQty: Math.round(x.qty * 100) / 100,
+        pctOfTarget: info.monthlyTarget > 0 ? Math.round(x.qty / info.monthlyTarget * 10000) / 100 : '',
+        shareOfWorkflow: tot > 0 ? Math.round(x.qty / tot * 10000) / 100 : '',
+        workflowActual: info.approvedActual
+      });
+    });
+  });
+  const mi = m => { const p = m.split('-'); return Number(p[1]) * 12 + MON.indexOf(p[0]); };
+  return out.sort((a, b) => mi(a.month) - mi(b.month) || a.activityName.localeCompare(b.activityName) || a.workflowName.localeCompare(b.workflowName) || b.staffQty - a.staffQty);
+}
+
 async function runReport() {
   const def = REPORT_DEFS[currentReportId];
   const from = document.getElementById('repFrom').value;
@@ -5140,7 +5314,7 @@ async function runReport() {
 
   let data;
   try {
-    data = await callApi(def.action, params);
+    data = def.customFetch ? await def.customFetch(params) : await callApi(def.action, params);
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="${def.columns.length}" class="empty">${escapeHtml(e.message)}</td></tr>`;
     return;
@@ -5226,7 +5400,7 @@ function printReport() {
   // Falls back to a fresh company/department-only line in the unlikely
   // case Print is somehow reached before that ran.
   const lh = lastReportMeta || { company: T('lhCompanyName'), dept: `${T('lhDepartmentLabel')}: ${T('lhDepartmentDefault')}`, meta: `${T('lhPreparedOn')}: ${new Date().toLocaleString()}` };
-  w.document.write(`<html><head><title>${escapeHtml(title)}</title><style>
+  w.document.write(`<html><head><title>${title}</title><style>
     body{font-family:Arial,sans-serif;padding:20px;} h2{margin-bottom:4px;}
     .lhCompany{font-size:16px;font-weight:700;margin-bottom:2px;} .lhDept{font-size:13px;margin-bottom:2px;} .lhMeta{font-size:11px;color:#555;margin-bottom:10px;}
     table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #999;padding:5px 7px;text-align:left;}
@@ -5272,32 +5446,16 @@ async function loadMastersView() {
     // fall through and render whatever MASTERS we already have, rather than
     // leaving the page blank on a transient network error
   }
-  // SECTION-WISE MANAGER SCOPING (Sep 2026): a Manager only sees/manages
-  // Staff within their own Section here (backend requireManagerOwnSection_()
-  // enforces the real rule; this just keeps the list in sync). HR and an
-  // unrestricted Manager (no Section set) see everyone, as before.
-  const mySection = SESSION.role === 'Manager' ? getSessionSectionId() : '';
-  // DEPARTMENT-WISE MANAGER SCOPING (Sep 2026, Phase 2): further narrows the
-  // list to the Manager's own Department (backend
-  // scopeStaffIdsToManagerScope_() enforces the real rule; this keeps the
-  // visible list in sync). HR and an unrestricted Manager see everyone.
-  const myDept = SESSION.role === 'Manager' ? getSessionDepartmentId() : '';
-  const staffForMasters0 = mySection ? MASTERS.staff.filter(s => (s['Section'] || '') === mySection) : MASTERS.staff;
-  const staffForMasters = myDept ? staffForMasters0.filter(s => (s['Department'] || '') === myDept) : staffForMasters0;
-  document.querySelector('#staffTable tbody').innerHTML = staffForMasters.map(s => `
-    <tr><td>${escapeHtml(s['Staff ID'])}</td><td>${escapeHtml(s['Staff Name'])}</td><td>${escapeHtml(s['Designation'])}</td><td>${escapeHtml(s['Department'])}</td><td>${escapeHtml(s['Section'])}</td><td>${escapeHtml(s['Status'])}</td>
+  document.querySelector('#staffTable tbody').innerHTML = MASTERS.staff.map(s => `
+    <tr><td>${escapeHtml(s['Staff ID'])}</td><td>${escapeHtml(s['Staff Name'])}</td><td>${escapeHtml(s['Designation'])}</td><td>${escapeHtml(s['Section'])}</td><td>${escapeHtml(s['Status'])}</td>
     <td><button class="btn btn-outline btn-sm" data-action="openStaffForm" data-id="${escapeHtml(s['Staff ID'])}">${T('editBtn')}</button></td></tr>
-  `).join('');
-  document.querySelector('#departmentTable tbody').innerHTML = (MASTERS.departments || []).map(d => `
-    <tr><td>${escapeHtml(d['Department ID'])}</td><td>${escapeHtml(d['Department Name'])}</td><td>${escapeHtml(d['Status'] || '')}</td>
-    <td><button class="btn btn-outline btn-sm" data-action="openDepartmentForm" data-id="${escapeHtml(d['Department ID'])}">${T('editBtn')}</button></td></tr>
   `).join('');
   document.querySelector('#sectionTable tbody').innerHTML = (MASTERS.sections || []).map(s => `
     <tr><td>${escapeHtml(s['Section ID'])}</td><td>${escapeHtml(s['Section Name'])}</td>
     <td><button class="btn btn-outline btn-sm" data-action="openSectionForm" data-id="${escapeHtml(s['Section ID'])}">${T('editBtn')}</button></td></tr>
   `).join('');
   document.querySelector('#activityTable tbody').innerHTML = (MASTERS.activities || []).map(a => `
-    <tr><td>${escapeHtml(a['Activity ID'])}</td><td>${escapeHtml(a['Activity Code'])}</td><td>${escapeHtml(a['Activity Name'])}</td><td>${escapeHtml(a['Department'] || '')}</td>
+    <tr><td>${escapeHtml(a['Activity ID'])}</td><td>${escapeHtml(a['Activity Code'])}</td><td>${escapeHtml(a['Activity Name'])}</td>
     <td><button class="btn btn-outline btn-sm" data-action="openActivityForm" data-id="${escapeHtml(a['Activity ID'])}">${T('editBtn')}</button></td></tr>
   `).join('');
   document.querySelector('#workflowTable tbody').innerHTML = MASTERS.workflows.map(w => `
@@ -5310,28 +5468,13 @@ async function loadMastersView() {
 // null id -> Add mode; a Staff ID -> Edit mode (form pre-filled).
 function openStaffForm(staffId) {
   const card = document.getElementById('staffFormCard');
-  // SECTION-WISE MANAGER SCOPING (Sep 2026): a Manager scoped to one Section
-  // can only pick that Section here (locked, single option) - matches the
-  // backend's requireManagerOwnSection_() rule and avoids a confusing
-  // "not authorized" error after filling the whole form. HR and an
-  // unrestricted Manager (no Section set) still get the full list.
-  const mySection = SESSION.role === 'Manager' ? getSessionSectionId() : '';
-  document.getElementById('sfSection').innerHTML = mySection
-    ? `<option value="${escapeHtml(mySection)}">${escapeHtml(mySection)}</option>`
-    : (MASTERS.sections || []).map(s => `<option value="${escapeHtml(s['Section Name'])}">${escapeHtml(s['Section Name'])}</option>`).join('');
-  // DEPARTMENT-WISE MANAGER SCOPING (Sep 2026, Phase 2): mirrors the
-  // Section dropdown above - a Manager scoped to one Department can only
-  // pick that Department (locked, single option).
-  const myDept = SESSION.role === 'Manager' ? getSessionDepartmentId() : '';
-  document.getElementById('sfDepartment').innerHTML = myDept
-    ? `<option value="${escapeHtml(myDept)}">${escapeHtml(myDept)}</option>`
-    : (MASTERS.departments || []).map(d => `<option value="${escapeHtml(d['Department Name'])}">${escapeHtml(d['Department Name'])}</option>`).join('');
+  document.getElementById('sfSection').innerHTML = (MASTERS.sections || [])
+    .map(s => `<option value="${escapeHtml(s['Section Name'])}">${escapeHtml(s['Section Name'])}</option>`).join('');
   const s = staffId ? MASTERS.staff.find(x => x['Staff ID'] === staffId) : null;
   card.dataset.staffId = staffId || '';
   document.getElementById('staffFormTitle').textContent = staffId ? ('Edit Staff — ' + staffId) : 'Add Staff';
   document.getElementById('sfName').value = s ? s['Staff Name'] : '';
   document.getElementById('sfDesignation').value = s ? s['Designation'] : '';
-  document.getElementById('sfDepartment').value = s ? (s['Department'] || myDept || 'Stores') : (myDept || 'Stores');
   document.getElementById('sfSection').value = s ? s['Section'] : '';
   document.getElementById('sfReportingManager').value = s ? s['Reporting Manager'] : '';
   document.getElementById('sfDoj').value = s && s['Date of Joining'] ? localDateStr(new Date(s['Date of Joining'])) : '';
@@ -5348,7 +5491,6 @@ async function saveStaffForm() {
   const fields = {
     'Staff Name': document.getElementById('sfName').value,
     'Designation': document.getElementById('sfDesignation').value,
-    'Department': document.getElementById('sfDepartment').value,
     'Section': document.getElementById('sfSection').value,
     'Reporting Manager': document.getElementById('sfReportingManager').value,
     'Date of Joining': document.getElementById('sfDoj').value,
@@ -5360,43 +5502,12 @@ async function saveStaffForm() {
     } else {
       await callApi('addStaff', {
         actorRole: SESSION.role, actorUserId: SESSION.userId, staffName: fields['Staff Name'],
-        designation: fields['Designation'], department: fields['Department'], section: fields['Section'],
+        designation: fields['Designation'], section: fields['Section'],
         reportingManager: fields['Reporting Manager'], doj: fields['Date of Joining'], status: fields['Status']
       });
     }
     toast(T('saveChanges'));
     closeStaffForm();
-    MASTERS = await callApi('getMasters', {});
-    loadMastersView();
-  } catch (e) { toast(e.message); }
-}
-
-/* ---------- Department Master Add/Edit (Sep 2026, Phase 2) ---------- */
-function openDepartmentForm(departmentId) {
-  const card = document.getElementById('departmentFormCard');
-  const d = departmentId ? (MASTERS.departments || []).find(x => x['Department ID'] === departmentId) : null;
-  card.dataset.departmentId = departmentId || '';
-  document.getElementById('departmentFormTitle').textContent = departmentId ? ('Edit Department — ' + departmentId) : 'Add Department';
-  document.getElementById('deptfName').value = d ? d['Department Name'] : '';
-  document.getElementById('deptfStatus').value = d ? (d['Status'] || 'Active') : 'Active';
-  card.style.display = 'block';
-  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-function closeDepartmentForm() {
-  document.getElementById('departmentFormCard').style.display = 'none';
-}
-async function saveDepartmentForm() {
-  const departmentId = document.getElementById('departmentFormCard').dataset.departmentId;
-  const departmentName = document.getElementById('deptfName').value;
-  const status = document.getElementById('deptfStatus').value;
-  try {
-    if (departmentId) {
-      await callApi('updateDepartment', { actorRole: SESSION.role, actorUserId: SESSION.userId, departmentId, departmentName, status });
-    } else {
-      await callApi('addDepartment', { actorRole: SESSION.role, actorUserId: SESSION.userId, departmentName });
-    }
-    toast(T('saveChanges'));
-    closeDepartmentForm();
     MASTERS = await callApi('getMasters', {});
     loadMastersView();
   } catch (e) { toast(e.message); }
@@ -5443,8 +5554,6 @@ function openActivityForm(activityId) {
   document.getElementById('actfCode').value = a ? a['Activity Code'] : '';
   document.getElementById('actfCode').disabled = !!activityId;
   document.getElementById('actfName').value = a ? a['Activity Name'] : '';
-  document.getElementById('actfDepartment').innerHTML = (MASTERS.departments || []).map(d => `<option value="${escapeHtml(d['Department Name'])}">${escapeHtml(d['Department Name'])}</option>`).join('');
-  document.getElementById('actfDepartment').value = a ? (a['Department'] || 'Stores') : 'Stores';
   card.style.display = 'block';
   card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -5456,12 +5565,11 @@ async function saveActivityForm() {
   const activityId = document.getElementById('activityFormCard').dataset.activityId;
   const activityName = document.getElementById('actfName').value;
   const activityCode = document.getElementById('actfCode').value;
-  const department = document.getElementById('actfDepartment').value;
   try {
     if (activityId) {
-      await callApi('updateActivity', { actorRole: SESSION.role, actorUserId: SESSION.userId, activityId, activityName, department });
+      await callApi('updateActivity', { actorRole: SESSION.role, actorUserId: SESSION.userId, activityId, activityName });
     } else {
-      await callApi('addActivity', { actorRole: SESSION.role, actorUserId: SESSION.userId, activityCode, activityName, department });
+      await callApi('addActivity', { actorRole: SESSION.role, actorUserId: SESSION.userId, activityCode, activityName });
     }
     toast(T('saveChanges'));
     closeActivityForm();
