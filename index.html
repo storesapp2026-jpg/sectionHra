@@ -1948,6 +1948,7 @@ async function callApi(action, params, _retried, _transportRetry) {
   // below. transportAttempt counts ONLY these transport-level retries (fetch
   // network errors + non-JSON/404 responses) and is separate from the
   // existing sessionExpired attempt counter (_retried) further down.
+  const _reqStart = Date.now(); // PWD-CHANGE FIX: compare with _lastPwChangeTs below
   const transportAttempt = _transportRetry || 0;
   let res, rawText;
   // TIMEOUT (Sep 2026): an Apps Script call that hits the echo-404 can hang ~15s
@@ -2025,6 +2026,12 @@ async function callApi(action, params, _retried, _transportRetry) {
     // if this tab's SESSION/UI state hasn't caught up yet (e.g. flag set by
     // an admin mid-session, or a stale tab). Re-open the same forced modal
     // the login flow already uses, instead of just showing a raw error.
+    if (out.mustChangePassword && _reqStart < _lastPwChangeTs) {
+      // PWD-CHANGE FIX: this request left BEFORE the password was changed, so the
+      // server's 'must change' answer is outdated - re-send it instead of
+      // re-opening the change-password popup.
+      return callApi(action, params, _retried, _transportRetry);
+    }
     if (out.mustChangePassword) {
       if (SESSION) { SESSION.mustChangePassword = true; sessionStorage.setItem('kpi_session', JSON.stringify(SESSION)); }
       openChangePasswordModal(true);
@@ -2089,6 +2096,7 @@ function closeChangePasswordModal() {
   document.getElementById('changePasswordModal').style.display = 'none';
 }
 
+let _lastPwChangeTs = 0;
 async function submitChangePassword() {
   const oldPassword = document.getElementById('cpOldPassword').value;
   const newPassword = document.getElementById('cpNewPassword').value;
@@ -2100,6 +2108,8 @@ async function submitChangePassword() {
   if (newPassword !== confirmPassword) { errEl.textContent = T('passwordsDontMatch'); return; }
   try {
     await callApi('changePassword', { oldPassword, newPassword });
+    _lastPwChangeTs = Date.now();
+    _apiCache.clear();
     SESSION.mustChangePassword = false;
     sessionStorage.setItem('kpi_session', JSON.stringify(SESSION));
     document.getElementById('changePasswordModal').dataset.forced = '';
