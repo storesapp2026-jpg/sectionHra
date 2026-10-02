@@ -2068,11 +2068,10 @@ async function doLogin() {
     const data = await callApi('login', { userId, password });
     SESSION = data;
     sessionStorage.setItem('kpi_session', JSON.stringify(data));
-    enterApp();
+    enterApp(); // opens the forced-change popup itself when needed
     // FORCED PASSWORD CHANGE (audit item 31) - shown on top of the app right
     // after entering; Cancel is hidden so a starter/reset account can't be
     // used further until the password is actually changed.
-    if (data.mustChangePassword) openChangePasswordModal(true);
   } catch (e) {
     err.textContent = e.message;
   } finally {
@@ -2080,7 +2079,12 @@ async function doLogin() {
   }
 }
 
+let _pendingEnter = false;
 function openChangePasswordModal(forced) {
+  // TYPING FIX: if the forced popup is already open, do NOT reset it - background
+  // calls used to re-open it every second or two and wipe the letters being typed.
+  const _m = document.getElementById('changePasswordModal');
+  if (forced && _m.style.display === 'flex' && _m.dataset.forced === '1') return;
   document.getElementById('cpOldPassword').value = '';
   document.getElementById('cpNewPassword').value = '';
   document.getElementById('cpConfirmPassword').value = '';
@@ -2115,6 +2119,7 @@ async function submitChangePassword() {
     document.getElementById('changePasswordModal').dataset.forced = '';
     document.getElementById('changePasswordModal').style.display = 'none';
     toast(T('passwordChanged'));
+    if (_pendingEnter) { _pendingEnter = false; enterApp(); }
   } catch (e) { errEl.textContent = e.message; }
 }
 
@@ -2288,6 +2293,9 @@ async function enterApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   document.getElementById('whoLabel').textContent = SESSION.staffName + ' · ' + SESSION.role;
+  // TYPING FIX: while a password change is compulsory, don't call the server for
+  // Masters (it is blocked anyway and kept re-opening the popup). Load the app after the change.
+  if (SESSION.mustChangePassword) { _pendingEnter = true; openChangePasswordModal(true); return; }
 
   // BUGFIX (Aug 2026): getMasters() failures used to be handled with a
   // single attempt + a catch block that only bailed out if SESSION had
@@ -2580,7 +2588,6 @@ window.addEventListener('DOMContentLoaded', () => {
   if (saved) {
     SESSION = JSON.parse(saved);
     enterApp();
-    if (SESSION.mustChangePassword) openChangePasswordModal(true);
   }
 });
 
