@@ -3077,10 +3077,12 @@ function populateRegActivitySelect() {
   const sel = document.getElementById('regActivity');
   const prev = sel.value;
   const _mySec = (typeof getSessionSectionId === 'function') ? getSessionSectionId() : '';
-  const _acts = SESSION && SESSION.role === 'Staff'
-    ? MASTERS.activities.filter(a => (MASTERS.workflows || []).some(w => w['Activity ID'] === a['Activity ID'] &&
-        w['Status'] !== 'Inactive' && workflowAppliesToSection(w, _mySec)))
-    : MASTERS.activities;
+  // FIX (Oct 2026): the Activity dropdown used to be filtered for Staff only - a Manager saw EVERY activity,
+  // including ones whose workflows are all Inactive or belong to another Section. Now every role that
+  // uses the Register (Staff AND Manager) sees only Activities that have at least one Active workflow
+  // applicable to his own Section.
+  const _acts = (MASTERS.activities || []).filter(a => (MASTERS.workflows || []).some(w => w['Activity ID'] === a['Activity ID'] &&
+        w['Status'] !== 'Inactive' && workflowAppliesToSection(w, _mySec)));
   sel.innerHTML = '<option value="">Select</option>' + _acts.map(a =>
     `<option value="${escapeHtml(a['Activity ID'])}">${escapeHtml(a['Activity Name'])}</option>`).join('');
   sel.value = prev;
@@ -3201,7 +3203,7 @@ function renderWorkflowChecklist() {
   const mySection = getSessionSectionId();
   CURRENT_ACTIVITY_WFS = activityId
     ? MASTERS.workflows.filter(w => w['Activity ID'] === activityId && w['Status'] !== 'Inactive'
-        && (SESSION.role !== 'Staff' || workflowAppliesToSection(w, mySection)))
+        && workflowAppliesToSection(w, mySection))
     : [];
   renderChecklistRows();
 }
