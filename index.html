@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stores KPI &amp; Appraisal | Sri Narasu's Coffee Co.</title>
+<title>KPI &amp; Appraisal | Sri Narasu's Coffee Co.</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%95%3C/text%3E%3C/svg%3E">
 <!-- PERF (Sep 2026, item 6): xlsx (~1 MB) and Chart.js are NO LONGER downloaded on
      page load. They are fetched only when actually needed - Chart.js the
@@ -318,8 +318,8 @@ main.content{
   <div class="login-card">
     <button class="lang-toggle" id="langToggleLogin" onclick="toggleLang()">தமிழ் / EN</button>
     <div class="brand-mark">☕</div>
-    <h1 data-i18n="appTitle">Stores KPI &amp; Appraisal</h1>
-    <p class="sub" data-i18n="companyLine">Sri Narasu's Coffee Company Pvt Ltd &mdash; Stores Department</p>
+    <h1 data-i18n="appTitle">KPI &amp; Appraisal</h1>
+    <p class="sub" data-i18n="companyLine">Sri Narasu's Coffee Company Pvt Ltd</p>
     <div class="field">
       <label for="loginUserId" data-i18n="userId">User ID</label>
       <input id="loginUserId" type="text" autocomplete="username" placeholder="e.g. sakthivel">
@@ -337,7 +337,7 @@ main.content{
 <!-- ============ APP ============ -->
 <div id="app">
   <header class="topbar">
-    <div class="brand"><span class="dot"></span> <span data-i18n="appTitle">Stores KPI &amp; Appraisal</span></div>
+    <div class="brand"><span class="dot"></span> <span data-i18n="appTitle">KPI &amp; Appraisal</span></div>
     <div class="who">
       <span id="whoLabel"></span>
       <div id="notifBellWrap" style="position:relative;display:none;">
@@ -1340,11 +1340,11 @@ let SESSION = null;   // {userId, staffId, staffName, role}
    I18N (English / Tamil)
    ============================================================ */
 const I18N = {
-  appTitle: { en: "Stores KPI &amp; Appraisal", ta: "ஸ்டோர்ஸ் KPI &amp; மதிப்பீடு" },
+  appTitle: { en: "KPI &amp; Appraisal", ta: "KPI &amp; மதிப்பீடு" },
   mastersLoadFailedTitle: { en: "Could not load Staff / Activity / Workflow data", ta: "பணியாளர் / செயல்பாடு / வொர்க்ஃப்ளோ தரவு ஏற்ற முடியவில்லை" },
   mastersLoadFailedBody: { en: "The Working Register and other screens need this Master Data to work, and it did not load completely. This is usually a temporary connection hiccup - please try again.", ta: "Working Register மற்றும் மற்ற திரைகள் வேலை செய்ய இந்த Master Data தேவை, அது முழுமையாக ஏற்றப்படவில்லை. இது பொதுவாக ஒரு தற்காலிக இணைப்பு பிரச்சனை - மீண்டும் முயற்சிக்கவும்." },
   retryLoading: { en: "Retry", ta: "மீண்டும் முயற்சி" },
-  companyLine: { en: "Sri Narasu's Coffee Company Pvt Ltd &mdash; Stores Department", ta: "ஸ்ரீ நரசு'ஸ் காபி கம்பெனி பிரைவேட் லிமிடெட் &mdash; ஸ்டோர்ஸ் துறை" },
+  companyLine: { en: "Sri Narasu's Coffee Company Pvt Ltd", ta: "ஸ்ரீ நரசு'ஸ் காபி கம்பெனி பிரைவேட் லிமிடெட்" },
   userId: { en: "User ID", ta: "பயனர் ஐடி" },
   password: { en: "Password", ta: "கடவுச்சொல்" },
   logIn: { en: "Log In", ta: "உள்நுழைக" },
@@ -1407,6 +1407,16 @@ const I18N = {
   targetsForMonth: { en: "Targets for Selected Month", ta: "தேர்ந்தெடுக்கப்பட்ட மாதத்திற்கான இலக்குகள்" },
   kpi: { en: "KPI", ta: "KPI" },
   targetStatusTitle: { en: "Target Status", ta: "இலக்கு நிலை" },
+  tsTotalTarget: { en: "Total Monthly Target", ta: "மொத்த மாதாந்திர இலக்கு" },
+  tsTotalApproved: { en: "Total Approved Qty", ta: "மொத்த அங்கீகரிக்கப்பட்ட அளவு" },
+  tsExcess: { en: "Excess Over Target", ta: "இலக்கிற்கு மேல் கூடுதல்" },
+  tsExcessHint: { en: "workflows above 100%", ta: "100%-க்கு மேல் உள்ள பணிப்பாய்வுகள்" },
+  tsCounted: { en: "Qty Counted For KPI", ta: "KPI-க்கு எடுத்த அளவு" },
+  tsRemaining: { en: "Remaining Target", ta: "மீதமுள்ள இலக்கு" },
+  tsProgress: { en: "Overall Progress", ta: "மொத்த முன்னேற்றம்" },
+  tsTotalWf: { en: "Total Workflows", ta: "மொத்த பணிப்பாய்வுகள்" },
+  tsCompletedWf: { en: "Completed Workflows", ta: "முடிந்த பணிப்பாய்வுகள்" },
+  tsPendingWf: { en: "Pending Workflows", ta: "நிலுவை பணிப்பாய்வுகள்" },
   targetStatusSub: { en: "Progress of each workflow against its monthly target (Approved entries only)", ta: "ஒவ்வொரு பணிப்பாய்வின் மாதாந்திர இலக்கிற்கு எதிரான முன்னேற்றம் (அங்கீகரிக்கப்பட்ட பதிவுகள் மட்டும்)" },
   target: { en: "Target", ta: "இலக்கு" },
   source: { en: "Source", ta: "மூலம்" },
@@ -1602,7 +1612,7 @@ const I18N = {
   weightagePct: { en: "Weightage %", ta: "எடை %" },
   maxScore: { en: "Max Score", ta: "அதிகபட்ச மதிப்பெண்" },
   maxScoreReadonly: { en: "Max Score (read-only — always equals Weightage %)", ta: "அதிகபட்ச மதிப்பெண் (Read-Only — எப்போதும் Weightage %-க்கு சமம்)" },
-  editWfSectionsLabel: { en: "Sections (comma-separated Section IDs, or \"All\")", ta: "பிரிவுகள் (கமா-பிரிக்கப்பட்ட Section ID, அல்லது \"All\")" },
+  editWfSectionsLabel: { en: "Sections (comma-separated Section Names, or \"All\")", ta: "பிரிவுகள் (கமா-பிரிக்கப்பட்ட Section பெயர்கள், அல்லது \"All\")" },
   weightageMismatchWarning: { en: "The Weightage % total across all Active workflows (Attendance excluded) does not equal 100 — Stores KPI % will not add up correctly until fixed:", ta: "அனைத்து Active பணிப்பாய்வுகளின் Weightage % மொத்தமும் (Attendance தவிர) 100 இல்லை — சரிசெய்யும் வரை Stores KPI % சரியாக கூடாது:" },
   expectedOutput: { en: "Expected Output", ta: "எதிர்பார்க்கப்படும் வெளியீடு" },
   editWorkflowTitle: { en: "Edit Workflow", ta: "பணிப்பாய்வு திருத்தம்" },
@@ -1734,6 +1744,7 @@ const I18N = {
   // name + prepared-on timestamp shown on the Reports screen and on Print) ----
   lhCompanyName: { en: "Sri Narasu's Coffee Company Pvt Ltd", ta: "ஸ்ரீ நரசு'ஸ் காபி கம்பெனி பிரைவேட் லிமிடெட்" },
   lhDepartmentLabel: { en: "Department", ta: "துறை" },
+  lhAllSections: { en: "All Sections", ta: "அனைத்து பிரிவுகள்" },
   lhDepartmentDefault: { en: "Stores Department", ta: "ஸ்டோர்ஸ் துறை" },
   lhPreparedOn: { en: "Report Prepared On", ta: "அறிக்கை தயாரிக்கப்பட்ட நேரம்" },
   statusDraft: { en: "Draft", ta: "வரைவு" },
@@ -4426,13 +4437,15 @@ async function loadTargetStatus() {
   try { d = await callApi('getTargetDashboard', { month }); } catch (e) { toast(e.message); return; }
 
   document.getElementById('targetDashStats').innerHTML = `
-    <div class="stat-card"><div class="label">Total Monthly Target</div><div class="value">${d.totalMonthlyTarget}</div></div>
-    <div class="stat-card alt"><div class="label">Total Approved Qty</div><div class="value">${d.totalApprovedQty}</div></div>
-    <div class="stat-card"><div class="label">Remaining Target</div><div class="value">${d.remainingTarget}</div></div>
-    <div class="stat-card alt"><div class="label">Overall Progress</div><div class="value">${d.overallProgressPct}%</div></div>
-    <div class="stat-card"><div class="label">Total Workflows</div><div class="value">${d.totalWorkflows}</div></div>
-    <div class="stat-card alt"><div class="label">Completed Workflows</div><div class="value">${d.completedWorkflows}</div></div>
-    <div class="stat-card"><div class="label">Pending Workflows</div><div class="value">${d.pendingWorkflows}</div></div>
+    <div class="stat-card"><div class="label">${T('tsTotalTarget')}</div><div class="value">${d.totalMonthlyTarget}</div></div>
+    <div class="stat-card alt"><div class="label">${T('tsTotalApproved')}</div><div class="value">${d.totalApprovedQty}</div></div>
+    <div class="stat-card"><div class="label">${T('tsExcess')}</div><div class="value">${d.excessQty || 0}</div><div style="font-size:11px;opacity:.85;margin-top:2px">${T('tsExcessHint')}</div></div>
+    <div class="stat-card alt"><div class="label">${T('tsCounted')}</div><div class="value">${d.countedQty != null ? d.countedQty : d.totalApprovedQty}</div><div style="font-size:11px;opacity:.85;margin-top:2px">${d.totalApprovedQty} &minus; ${d.excessQty || 0}</div></div>
+    <div class="stat-card"><div class="label">${T('tsRemaining')}</div><div class="value">${d.remainingTarget}</div></div>
+    <div class="stat-card alt"><div class="label">${T('tsProgress')}</div><div class="value">${d.overallProgressPct}%</div></div>
+    <div class="stat-card"><div class="label">${T('tsTotalWf')}</div><div class="value">${d.totalWorkflows}</div></div>
+    <div class="stat-card alt"><div class="label">${T('tsCompletedWf')}</div><div class="value">${d.completedWorkflows}</div></div>
+    <div class="stat-card"><div class="label">${T('tsPendingWf')}</div><div class="value">${d.pendingWorkflows}</div></div>
   `;
 
   document.querySelector('#targetStatusTable tbody').innerHTML = d.statuses.map(s => {
@@ -5845,6 +5858,14 @@ let lastReportMeta = null;
 // every successful runReport() so "Prepared On" reflects the actual run
 // time, and reused as-is by printReport() so the printed copy matches
 // what's shown on screen.
+// LETTERHEAD DEPARTMENT (Oct 2026): shows the Section being reported (the Section
+// filter if one is picked, else a Staff user's own Section, else "All Sections")
+// instead of a hard-coded "Stores Department".
+function reportDeptText(sectionName) {
+  let sec = sectionName || '';
+  if (!sec && typeof SESSION !== 'undefined' && SESSION && SESSION.role === 'Staff' && typeof getSessionSectionId === 'function') sec = getSessionSectionId();
+  return `${T('lhDepartmentLabel')}: ${sec || T('lhAllSections')}`;
+}
 function updateReportLetterhead(def) {
   const staffSel = document.getElementById('repStaff');
   const staffName = (def.filters.includes('staff') && staffSel.value && staffSel.selectedOptions[0])
@@ -5852,7 +5873,6 @@ function updateReportLetterhead(def) {
   const sectionSel = document.getElementById('repSection');
   const sectionName = (def.filters.includes('section') && sectionSel.value) ? sectionSel.value : '';
   const metaParts = [];
-  if (sectionName) metaParts.push(`${T('section')}: ${sectionName}`);
   if (staffName) metaParts.push(`${T('staff')}: ${staffName}`);
   if (def.filters.includes('monthRange')) {
     const a = document.getElementById('repFromMonth').value, b = document.getElementById('repToMonth').value;
@@ -5862,7 +5882,7 @@ function updateReportLetterhead(def) {
 
   lastReportMeta = {
     company: T('lhCompanyName'),
-    dept: `${T('lhDepartmentLabel')}: ${T('lhDepartmentDefault')}`,
+    dept: reportDeptText(sectionName),
     meta: metaParts.join('  |  ')
   };
 
@@ -6240,7 +6260,7 @@ function printReport() {
   // runReport(), so the printed copy always matches what's on screen.
   // Falls back to a fresh company/department-only line in the unlikely
   // case Print is somehow reached before that ran.
-  const lh = lastReportMeta || { company: T('lhCompanyName'), dept: `${T('lhDepartmentLabel')}: ${T('lhDepartmentDefault')}`, meta: `${T('lhPreparedOn')}: ${new Date().toLocaleString()}` };
+  const lh = lastReportMeta || { company: T('lhCompanyName'), dept: reportDeptText(''), meta: `${T('lhPreparedOn')}: ${new Date().toLocaleString()}` };
   w.document.write(`<html><head><title>${title}</title><style>
     body{font-family:Arial,sans-serif;padding:20px;} h2{margin-bottom:4px;}
     .lhCompany{font-size:16px;font-weight:700;margin-bottom:2px;} .lhDept{font-size:13px;margin-bottom:2px;} .lhMeta{font-size:11px;color:#555;margin-bottom:10px;}
