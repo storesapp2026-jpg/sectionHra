@@ -2452,13 +2452,24 @@ function _applyMasters(m) {
   if (MASTERS.memoDecisionOptions) MEMO_DECISIONS = MASTERS.memoDecisionOptions;
   if (MASTERS.teamWorkflowIds) TEAM_WORKFLOW_IDS = MASTERS.teamWorkflowIds;
 }
+// FIX (Oct 2026, multi-section): a brand-new Section (e.g. Purchase) has no
+// Workflows/Activities yet, and a fresh install has no Staff for HR - those are
+// VALID empty states, not load failures. The old check demanded all three lists
+// be non-empty, so such a user (even with a correct login) got stuck on
+// "Could not load Staff / Activity / Workflow data". A response is now accepted
+// when it has the right SHAPE (all three are arrays); a Manager/Staff must also
+// see at least their own staff row (proves the sheet read really worked).
+function _mastersLookComplete(m) {
+  if (!m || !Array.isArray(m.staff) || !Array.isArray(m.activities) || !Array.isArray(m.workflows)) return false;
+  if (SESSION && SESSION.role === 'HR') return true;   // HR may start from an empty Staff sheet and add Sections/Staff
+  return m.staff.length > 0;                           // Manager/Staff always see at least themselves
+}
 async function loadMastersData(maxAttempts) {
   maxAttempts = maxAttempts || 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const m = await callApi('getMasters', {});
-      const complete = m && (m.staff && m.staff.length) &&
-        (m.activities && m.activities.length) && (m.workflows && m.workflows.length);
+      const complete = _mastersLookComplete(m);
       if (complete) {
         _applyMasters(m);
         // SPEED (Sep 2026): remember Masters for this tab so a browser refresh (F5)
@@ -2528,9 +2539,7 @@ async function enterApp() {
     // then refresh them from the server in the background.
     const raw = sessionStorage.getItem('kpi_masters');
     const c = raw ? JSON.parse(raw) : null;
-    if (c && c.u === SESSION.staffId && Date.now() - c.t < 30 * 60 * 1000 && c.m &&
-        c.m.staff && c.m.staff.length && c.m.activities && c.m.activities.length &&
-        c.m.workflows && c.m.workflows.length) {
+    if (c && c.u === SESSION.staffId && Date.now() - c.t < 30 * 60 * 1000 && _mastersLookComplete(c.m)) {
       _applyMasters(c.m);
       ok = true;
       loadMastersData().catch(() => {});
@@ -6312,6 +6321,7 @@ async function loadMastersView() {
     // fall through and render whatever MASTERS we already have, rather than
     // leaving the page blank on a transient network error
   }
+  MASTERS.staff = MASTERS.staff || []; MASTERS.workflows = MASTERS.workflows || [];
   document.querySelector('#staffTable tbody').innerHTML = MASTERS.staff.map(s => `
     <tr><td>${escapeHtml(s['Staff ID'])}</td><td>${escapeHtml(s['Staff Name'])}</td><td>${escapeHtml(s['Designation'])}</td><td>${escapeHtml(s['Section'])}</td><td>${escapeHtml(s['Status'])}</td>
     <td><button class="btn btn-outline btn-sm" data-action="openStaffForm" data-id="${escapeHtml(s['Staff ID'])}">${T('editBtn')}</button></td></tr>
@@ -6320,6 +6330,11 @@ async function loadMastersView() {
   const isHRUser = SESSION.role === 'HR';
   const asb = document.getElementById('addSectionBtn'); if (asb) asb.style.display = isHRUser ? '' : 'none';
   const aab = document.getElementById('addActivityBtn'); if (aab) aab.style.display = isHRUser ? 'none' : '';
+  // HR's Master Data page is for Staff + Section only: hide the Activity and Workflow cards for HR.
+  ['activityTable', 'workflowTable'].forEach(id => {
+    const card = document.getElementById(id) && document.getElementById(id).closest('.card');
+    if (card) card.style.display = isHRUser ? 'none' : '';
+  });
   document.querySelector('#sectionTable tbody').innerHTML = (MASTERS.sections || []).map(s => `
     <tr><td>${escapeHtml(s['Section ID'])}</td><td>${escapeHtml(s['Section Name'])}</td>
     <td>${isHRUser ? `<button class="btn btn-outline btn-sm" data-action="openSectionForm" data-id="${escapeHtml(s['Section ID'])}">${T('editBtn')}</button>` : ''}</td></tr>
