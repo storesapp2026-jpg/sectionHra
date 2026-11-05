@@ -704,6 +704,7 @@ main.content{
             <div><label for="addWfExpectedOutput">Expected Output (description only)</label><input type="text" id="addWfExpectedOutput"></div>
             <div><label for="addWfStatus">Status</label><select id="addWfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
           </div>
+          <label style="display:flex;align-items:center;gap:8px;margin:8px 0 4px;font-weight:600;"><input type="checkbox" id="addWfTeam"> Team workflow (Co-Staff basis) <span style="font-weight:400;color:var(--coffee-500);font-size:12px;">— tick if several staff do this job together; the Working Register will then show the Co-Staff checklist and the Weightage / Score is shared equally among them</span></label>
           <label style="display:block;margin:8px 0 4px;">Applicable Section(s) * <span style="font-weight:400;color:var(--coffee-500);font-size:12px;">— only staff of the ticked Section(s) will see this workflow in the Working Register</span></label>
           <div id="addWfSections" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:12px;"></div>
           <button class="btn btn-brown" id="addWfSaveBtn" onclick="saveAddWorkflow()">Save Workflow</button>
@@ -712,7 +713,7 @@ main.content{
 
         <div class="card">
           <div class="table-wrap"><table id="editWfTable"><thead><tr>
-            <th data-i18n="workflow">Workflow</th><th data-i18n="kpi">KPI</th><th data-i18n="unit">Unit</th><th data-i18n="perEntryTarget">Per-Entry Target</th><th data-i18n="weightagePct">Weightage %</th><th data-i18n="maxScore">Max Score</th><th data-i18n="expectedOutput">Expected Output</th><th data-i18n="status">Status</th><th data-i18n="colSections">Sections</th><th></th>
+            <th data-i18n="workflow">Workflow</th><th data-i18n="kpi">KPI</th><th data-i18n="unit">Unit</th><th data-i18n="perEntryTarget">Per-Entry Target</th><th data-i18n="weightagePct">Weightage %</th><th data-i18n="maxScore">Max Score</th><th data-i18n="expectedOutput">Expected Output</th><th data-i18n="status">Status</th><th data-i18n="colSections">Sections</th><th>Team</th><th></th>
           </tr></thead><tbody></tbody></table></div>
         </div>
 
@@ -728,6 +729,9 @@ main.content{
               <select id="editWfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select>
             </div>
             <div><label for="editWfSections" data-i18n="editWfSectionsLabel">Sections (comma-separated Section IDs, or "All")</label><input type="text" id="editWfSections" placeholder="e.g. Stores,Packing or All (Section names)"></div>
+            <div><label for="editWfTeam">Team workflow (Co-Staff basis)</label>
+              <select id="editWfTeam"><option value="No">No - Individual</option><option value="Yes">Yes - Team / Co-Staff</option></select>
+              <div id="editWfTeamNote" style="font-size:12px;color:var(--coffee-500);margin-top:4px;"></div></div>
           </div>
           <button class="btn btn-brown" onclick="saveWorkflowEdit()" data-i18n="saveChanges">Save Changes</button>
           <button class="btn btn-outline" onclick="closeWorkflowEdit()" data-i18n="cancelBtn">Cancel</button>
@@ -1319,7 +1323,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbyIz04Ijc6I25yY1OMxxVS3EjVL3mytQqDuiaDjJg_b-Aza-qC5uqpBY-GxJTgO5jzpcQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxJOi5m10nofsPmdl2yodxIrxpGgDiyQufySfuTNVDVORExeT5n-wW9l5-4xfuZHfi1/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -3841,8 +3845,9 @@ async function loadWorkflowEditList() {
       <td>${escapeHtml(w['Expected Output'])}</td>
       <td><span class="badge ${safeStatusClass(w['Status'])}">${escapeHtml(w['Status'])}</span></td>
       <td>${escapeHtml(w['Sections'] || '')}</td>
+      <td>${(String(w['Team Workflow']||'').toLowerCase() === 'yes' || TEAM_WORKFLOW_IDS.indexOf(w['Workflow ID']) !== -1) ? '<span class="badge">Team</span>' : '—'}</td>
       <td><button class="btn btn-outline btn-sm" data-action="openWorkflowEdit" data-id="${escapeHtml(w['Workflow ID'])}">${T('editBtn')}</button></td>
-    </tr>`).join('') || `<tr><td colspan="10" class="empty">${T('noWorkflowsFound')}</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="11" class="empty">${T('noWorkflowsFound')}</td></tr>`;
 
   // Populate the Unit datalist with every distinct Unit already in use, so
   // Manager can pick an existing one (avoids accidental near-duplicate
@@ -3865,6 +3870,14 @@ function openWorkflowEdit(workflowId) {
   document.getElementById('editWfExpectedOutput').value = w['Expected Output'] || '';
   document.getElementById('editWfStatus').value = w['Status'] || 'Active';
   document.getElementById('editWfSections').value = w['Sections'] || '';
+  {
+    const isTeamNow = String(w['Team Workflow']||'').toLowerCase() === 'yes' || TEAM_WORKFLOW_IDS.indexOf(workflowId) !== -1;
+    const sel = document.getElementById('editWfTeam');
+    sel.value = isTeamNow ? 'Yes' : 'No';
+    document.getElementById('editWfTeamNote').textContent = isTeamNow
+      ? 'Once Team entries exist, this cannot be switched back to Individual (it would change past scores).'
+      : 'Tick Yes if several staff do this job together.';
+  }
   document.getElementById('editWfFormCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -4024,6 +4037,7 @@ function openAddWorkflow() {
     secs.map(sc => `<label><input type="checkbox" class="addWfSecChk" value="${escapeHtml(sc['Section Name'])}"${ownOnly ? ' checked disabled' : ''}> ${escapeHtml(sc['Section Name'])}</label>`).join('');
   ['addWfName','addWfKpi','addWfUnit','addWfTarget','addWfWeightage','addWfExpectedOutput'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('addWfStatus').value = 'Active';
+  document.getElementById('addWfTeam').checked = false;
   document.getElementById('addWfFormCard').style.display = 'block';
   document.getElementById('addWfFormCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -4057,6 +4071,7 @@ async function saveAddWorkflow() {
       weightage,
       expectedOutput: document.getElementById('addWfExpectedOutput').value,
       status: document.getElementById('addWfStatus').value,
+      teamWorkflow: document.getElementById('addWfTeam').checked ? 'Yes' : '',
       sections: all ? 'All' : picked.join(',')
     });
     toast('Workflow added');
@@ -4082,13 +4097,15 @@ async function saveWorkflowEdit() {
     'Weightage %': document.getElementById('editWfWeightage').value,
     'Expected Output': document.getElementById('editWfExpectedOutput').value,
     'Status': document.getElementById('editWfStatus').value,
-    'Sections': document.getElementById('editWfSections').value
+    'Sections': document.getElementById('editWfSections').value,
+    'Team Workflow': document.getElementById('editWfTeam').value
   };
   try {
     await callApi('updateWorkflow', { actorRole: SESSION.role, actorUserId: SESSION.userId, workflowId, fields });
     toast(T('saveChanges'));
     closeWorkflowEdit();
     loadWorkflowEditList();
+    loadMastersData().catch(() => {}); // refresh MASTERS so the Working Register sees the Team flag at once
   } catch (e) { toast(e.message); }
 }
 
