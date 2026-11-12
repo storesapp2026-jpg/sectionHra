@@ -728,7 +728,7 @@ main.content{
             <div><label for="editWfStatus" data-i18n="status">Status</label>
               <select id="editWfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select>
             </div>
-            <div style="grid-column:1/-1;"><label data-i18n="editWfSectionsTick">Applicable Section(s) — tick</label><div id="editWfSections" style="display:flex;flex-wrap:wrap;gap:6px 18px;padding:6px 0;"></div></div>
+            <div><label for="editWfSections" data-i18n="editWfSectionsLabel">Sections (comma-separated Section IDs, or "All")</label><input type="text" id="editWfSections" placeholder="e.g. Stores,Packing or All (Section names)"></div>
             <div><label for="editWfTeam">Team workflow (Co-Staff basis)</label>
               <select id="editWfTeam"><option value="No">No - Individual</option><option value="Yes">Yes - Team / Co-Staff</option></select>
               <div id="editWfTeamNote" style="font-size:12px;color:var(--coffee-500);margin-top:4px;"></div></div>
@@ -890,6 +890,7 @@ main.content{
 
         <div class="card">
           <div class="form-row">
+            <div><label for="hrSection">Section <span style="color:#c62828">*</span></label><select id="hrSection" onchange="hrSectionChanged()"></select></div>
             <div><label for="hrPeriod" data-i18n="periodLabel">Period Label</label><input type="text" id="hrPeriod" placeholder="e.g. Jul-2026"></div>
             <div><label for="hrFrom" data-i18n="from">From</label><input type="date" id="hrFrom"></div>
             <div><label for="hrTo" data-i18n="to">To</label><input type="date" id="hrTo"></div>
@@ -906,6 +907,7 @@ main.content{
             <div style="align-self:end;"><button class="btn btn-outline hr-edit-only" onclick="runBackupNow()" title="Take an extra spreadsheet backup right now, in addition to the automatic daily one">💽 Backup Now</button></div>
           </div>
           <p class="li-target-info" data-i18n="periodLabelInfo">Period Label tags Recognition, Memo and Manual Score records for this cycle (e.g. "Jul-2026"). Saving a Snapshot lets the Department Dashboard build a Monthly/Yearly trend.</p>
+          <p class="li-target-info"><b>HR Appraisal works on ONE Section at a time.</b> Select the Section first. Approve &amp; Lock / Re-open applies only to the selected Section - other Sections are not affected.</p>
           <p class="li-target-info">Once a period is <b>Approved &amp; Locked</b>, Save Snapshot will refuse to overwrite it - use Re-open for Revision first if it genuinely needs to change (reason required, fully audited).</p>
           <!-- GO-LIVE FIX (audit item 2, Sep 2026): staff still on the
                neutral Discipline/Policy/Behaviour auto-default because no
@@ -934,6 +936,7 @@ main.content{
           <button class="subtab-btn" data-subtab="hrMemoMgmt" onclick="setHrTab('hrMemoMgmt')" data-i18n="tabMemoMgmt">📄 Memo Management</button>
           <button class="subtab-btn hr-edit-only" data-subtab="hrManual" onclick="setHrTab('hrManual')" data-i18n="tabManualScores">✍️ Manual Scores</button>
           <button class="subtab-btn hr-edit-only" data-subtab="hrTraining" onclick="setHrTab('hrTraining')" data-i18n="tabTraining">🎓 Training</button>
+          <button class="subtab-btn" data-subtab="hrSpecialWork" onclick="setHrTab('hrSpecialWork')">⭐ Special Work</button>
           <button class="subtab-btn" data-subtab="hrSummary" onclick="setHrTab('hrSummary')" data-i18n="tabHrSummary">📋 HR Summary</button>
           <button class="subtab-btn" data-subtab="hrDashboard" onclick="setHrTab('hrDashboard')" data-i18n="tabDeptDashboard">📈 Department Dashboard</button>
           <button class="subtab-btn" data-subtab="hrFormulaVerify" onclick="setHrTab('hrFormulaVerify')" data-i18n="formulaVerifyTitle">🔎 Formula Verification</button>
@@ -968,6 +971,24 @@ main.content{
           <div class="card">
             <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="recogThisPeriod">Recognitions — This Period</h3>
             <div class="table-wrap"><table id="recogTable"><thead><tr><th data-i18n="staff">Staff</th><th data-i18n="type">Type</th><th data-i18n="bonus">Bonus</th><th data-i18n="reason">Reason</th><th></th></tr></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+
+        <!-- SPECIAL WORK: Manager assigns + recommends marks, HR approves -->
+        <div class="subview" id="subview-hrSpecialWork">
+          <div class="card" id="swAssignCard">
+            <h3 style="margin-bottom:6px;font-size:14px;color:var(--coffee-700)">Assign Special Work</h3>
+            <p class="li-target-info">Flow: Manager assigns → work completed → Manager recommends marks (1–5) → <b>HR approves</b> → marks are added to the staff's HR Final Score for this Period (max 10 Special Work marks per staff per Period).</p>
+            <div class="form-row">
+              <div><label for="swStaff">Staff</label><select id="swStaff"></select></div>
+              <div style="grid-column:span 2"><label for="swTitle">Work Title</label><input type="text" id="swTitle" placeholder="Required - e.g. Warehouse re-layout"></div>
+            </div>
+            <div class="form-row"><div style="grid-column:1/-1"><label for="swDesc">Description (optional)</label><input type="text" id="swDesc" placeholder="What exactly is to be done"></div></div>
+            <button class="btn btn-brown" onclick="assignSpecialWorkEntry()">Assign Work</button>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)">Special Work — This Period</h3>
+            <div class="table-wrap"><table id="swTable"><thead><tr><th>Staff</th><th>Work</th><th>Status</th><th>Marks</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table></div>
           </div>
         </div>
 
@@ -1200,44 +1221,6 @@ main.content{
           </div>
           <div id="repSummaryCards" style="display:none;"></div>
           <div class="table-wrap"><table id="reportTable"><thead><tr></tr></thead><tbody></tbody></table></div>
-        </div>
-      </section>
-
-      <!-- BULK UPLOAD (Manager / HR) - Nov 2026 -->
-      <section class="view" id="view-bulkUpload">
-        <h2 class="view-title">Bulk Upload</h2>
-        <p class="view-sub">Upload many Sections, Activities, Staff or Workflows at once. Existing rows are updated, new rows are added. Upload in this order: Section → Activity → Staff → Workflow.</p>
-        <div class="card">
-          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:10px;">
-            <div><label for="buType">What to upload</label>
-              <select id="buType" onchange="buTypeChanged()">
-                <option value="all">★ All sheets in ONE Excel file (.xlsx)</option>
-                <option value="section">1. Sections (HR only)</option>
-                <option value="activity">2. Activities</option>
-                <option value="staff">3. Staff</option>
-                <option value="workflow">4. Workflows</option>
-              </select></div>
-            <button class="btn btn-outline" type="button" onclick="buDownloadTemplate()">⬇ Download template (CSV)</button>
-          </div>
-          <p id="buHelp" style="font-size:12.5px;color:var(--coffee-500);margin:0 0 10px;"></p>
-          <div id="buAllBox" style="display:none;">
-            <label for="buXlsx">Choose the Excel file (.xlsx) with the sheets Sections, Activities, Staff, Workflows</label>
-            <input type="file" id="buXlsx" accept=".xlsx" onchange="buXlsxChosen(this)">
-          </div>
-          <div id="buSingleBox">
-          <label for="buFile">Excel: Save As “CSV”, then choose the file — or copy the cells from Excel and paste below</label>
-          <input type="file" id="buFile" accept=".csv,.txt,.tsv" onchange="buFileChosen(this)">
-          <textarea id="buText" rows="7" style="width:100%;box-sizing:border-box;margin-top:8px;font-family:monospace;font-size:12px;" placeholder="Paste here (first row = column headings)"></textarea>
-          </div>
-          <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;">
-            <button class="btn btn-brown" type="button" onclick="buPreview()">1. Check / Preview</button>
-            <button class="btn btn-brown" type="button" id="buUploadBtn" onclick="buUpload()" disabled>2. Upload</button>
-            <button class="btn btn-outline" type="button" onclick="buClear()">Clear</button>
-          </div>
-        </div>
-        <div class="card" id="buResultCard" style="display:none;">
-          <div id="buSummary" style="font-weight:600;margin-bottom:8px;"></div>
-          <div class="table-wrap"><table id="buTable"><thead><tr><th>Line</th><th>Result</th><th>Details</th></tr></thead><tbody></tbody></table></div>
         </div>
       </section>
 
@@ -1654,7 +1637,6 @@ const I18N = {
   weightagePct: { en: "Weightage %", ta: "எடை %" },
   maxScore: { en: "Max Score", ta: "அதிகபட்ச மதிப்பெண்" },
   maxScoreReadonly: { en: "Max Score (read-only — always equals Weightage %)", ta: "அதிகபட்ச மதிப்பெண் (Read-Only — எப்போதும் Weightage %-க்கு சமம்)" },
-  editWfSectionsTick: { en: "Applicable Section(s) — tick", ta: "பொருந்தும் Section(கள்) — tick செய்யவும்" },
   editWfSectionsLabel: { en: "Sections (comma-separated Section Names, or \"All\")", ta: "பிரிவுகள் (கமா-பிரிக்கப்பட்ட Section பெயர்கள், அல்லது \"All\")" },
   weightageMismatchWarning: { en: "The Weightage % total across all Active workflows (Attendance excluded) does not equal 100 — Stores KPI % will not add up correctly until fixed:", ta: "அனைத்து Active பணிப்பாய்வுகளின் Weightage % மொத்தமும் (Attendance தவிர) 100 இல்லை — சரிசெய்யும் வரை Stores KPI % சரியாக கூடாது:" },
   expectedOutput: { en: "Expected Output", ta: "எதிர்பார்க்கப்படும் வெளியீடு" },
@@ -2399,7 +2381,7 @@ const NAV_ITEMS = [
   { id: 'targets', label: '🎯 Monthly Targets', labelTa: '🎯 மாதாந்திர இலக்குகள்', roles: ['Manager'] },
   { id: 'targetStatus', label: '📈 Target Status', labelTa: '📈 இலக்கு நிலை', roles: ['Manager', 'Staff'] },
   { id: 'approvals', label: '✅ Approvals', labelTa: '✅ ஒப்புதல்கள்', roles: ['Manager'] },
-  { id: 'editWorkflow', label: '⚙️ Edit Workflow', labelTa: '⚙️ பணிப்பாய்வு திருத்தம்', roles: ['Manager', 'HR'] },
+  { id: 'editWorkflow', label: '⚙️ Edit Workflow', labelTa: '⚙️ பணிப்பாய்வு திருத்தம்', roles: ['Manager'] },
   { id: 'attendance', label: '🗓️ Attendance', labelTa: '🗓️ வருகைப் பதிவு', roles: ['Manager', 'Staff'] },
   { id: 'leave', label: '🌴 Leave', labelTa: '🌴 விடுப்பு', roles: ['Manager', 'Staff'] },
   { id: 'myMemos', label: '📄 My Memos', labelTa: '📄 எனது மெமோக்கள்', roles: ['Staff'] },
@@ -2409,7 +2391,6 @@ const NAV_ITEMS = [
   { id: 'hrAppraisal', label: '🎖️ HR Appraisal', labelTa: '🎖️ HR மதிப்பீடு', roles: ['Manager', 'HR'] },
   { id: 'reports', label: '📁 Reports', labelTa: '📁 அறிக்கைகள்', roles: ['Manager'] },
   { id: 'masters', label: '⚙️ Master Data', labelTa: '⚙️ மூல தரவு', roles: ['Manager', 'HR'] },
-  { id: 'bulkUpload', label: '📤 Bulk Upload', labelTa: '📤 மொத்த பதிவேற்றம்', roles: ['Manager', 'HR'] },
   { id: 'loginAccounts', label: '🔑 Login Accounts', labelTa: '🔑 உள்நுழைவு கணக்குகள்', roles: ['HR'] }
 ];
 
@@ -2471,7 +2452,6 @@ function showView(id) {
   if (id === 'scoreBreakdown') loadScoreBreakdownStaffList();
   if (id === 'masters') loadMastersView();
   if (id === 'loginAccounts') loadLoginAccounts();
-  if (id === 'bulkUpload') initBulkUpload();
   if (id === 'hrAppraisal') initHrAppraisal();
   if (id === 'reports') loadReportsView();
 }
@@ -2797,6 +2777,7 @@ document.addEventListener('click', (e) => {
   const id = btn.dataset.id;
   const decision = btn.dataset.decision;
   switch (action) {
+    case 'specialWorkAct': specialWorkAct(id, decision); break;
     case 'openEditDraft': openEditDraft(id); break;
     case 'submitDraft': submitDraft(id); break;
     case 'deleteDraft': deleteDraft(id); break;
@@ -3898,32 +3879,6 @@ async function loadWorkflowEditList() {
     distinctUnits.map(u => `<option value="${escapeHtml(u)}"></option>`).join('');
 }
 
-// Section tick boxes for Edit Workflow (replaces the old comma-separated text box).
-// A Section Manager only has his own Section: it is pre-ticked and fixed, no "All Sections".
-function renderEditWfSections(current) {
-  const secs = (MASTERS.sections || []);
-  const ownOnly = SESSION.role === 'Manager' && secs.length === 1;
-  const cur = String(current || '').trim();
-  const isAll = cur.toLowerCase() === 'all';
-  const picked = cur.split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
-  document.getElementById('editWfSections').innerHTML =
-    (ownOnly ? '' : `<label style="font-weight:600;"><input type="checkbox" id="editWfSecAll" onchange="toggleEditWfSectionsAll(this.checked)"${isAll ? ' checked' : ''}> All Sections</label>`) +
-    secs.map(sc => {
-      const nm = String(sc['Section Name']);
-      const on = ownOnly || (!isAll && picked.indexOf(nm.toLowerCase()) !== -1);
-      return `<label><input type="checkbox" class="editWfSecChk" value="${escapeHtml(nm)}"${on ? ' checked' : ''}${(ownOnly || isAll) ? ' disabled' : ''}> ${escapeHtml(nm)}</label>`;
-    }).join('');
-}
-function toggleEditWfSectionsAll(checked) {
-  document.querySelectorAll('#editWfSections .editWfSecChk').forEach(cb => { cb.checked = false; cb.disabled = checked; });
-}
-function readEditWfSections() {
-  const all = document.getElementById('editWfSecAll');
-  if (all && all.checked) return 'All';
-  // disabled boxes (Section Manager's own Section) are still read: they are pre-ticked on purpose
-  return [...document.querySelectorAll('#editWfSections .editWfSecChk:checked')].map(cb => cb.value).join(',');
-}
-
 function openWorkflowEdit(workflowId) {
   const w = EDIT_WF_ROWS.find(r => r['Workflow ID'] === workflowId);
   if (!w) return;
@@ -3936,7 +3891,7 @@ function openWorkflowEdit(workflowId) {
   document.getElementById('editWfMaxScore').value = w['Weightage %'];
   document.getElementById('editWfExpectedOutput').value = w['Expected Output'] || '';
   document.getElementById('editWfStatus').value = w['Status'] || 'Active';
-  renderEditWfSections(w['Sections'] || '');
+  document.getElementById('editWfSections').value = w['Sections'] || '';
   {
     const isTeamNow = String(w['Team Workflow']||'').toLowerCase() === 'yes' || TEAM_WORKFLOW_IDS.indexOf(workflowId) !== -1;
     const sel = document.getElementById('editWfTeam');
@@ -4091,283 +4046,6 @@ async function toggleLoginStatus(userId, status) {
   catch (e) { toast(e.message); }
 }
 
-
-/* ============================================================
-   BULK UPLOAD (Nov 2026) - Section / Activity / Staff / Workflow
-   Parses CSV (or Excel-pasted tab text) in the browser, previews what
-   will be added/updated, then sends rows to the server 40 at a time.
-   The server applies each row through the normal validated add/update
-   actions, so every rule is the same as on the single-row screens.
-   ============================================================ */
-const BU_TYPES = {
-  section:  { tab: 'Sections', cols: ['Section Name'], required: ['Section Name'],
-    sample: [['Purchase'], ['Production']],
-    help: 'Only HR can add Sections. A Section that already exists is skipped.' },
-  activity: { tab: 'Activities', cols: ['Activity Code', 'Activity Name'], required: ['Activity Code', 'Activity Name'],
-    sample: [['PUR-ORD', 'Purchase Order Processing']],
-    help: 'Activity Code is the key. If the code already exists, the Activity Name is updated.' },
-  staff:    { tab: 'Staff', cols: ['Staff ID', 'Staff Name', 'Designation', 'Section', 'Reporting Manager', 'Date of Joining', 'Status'],
-    required: ['Staff Name'],
-    sample: [['', 'Ravi Kumar', 'Executive', 'Purchase', 'G. Raja', '12-03-2023', 'Active']],
-    help: 'Staff ID blank = new staff gets an automatic ID (the same Name + Section is matched, so re-uploading does not create duplicates). Staff ID given and found = that staff is updated. Date format dd-mm-yyyy. Section must already exist.' },
-  workflow: { tab: 'Workflows', cols: ['Workflow ID', 'Activity Code', 'Workflow Name', 'KPI Name', 'Unit', 'Target', 'Weightage %', 'Expected Output', 'Status', 'Sections', 'Team Workflow'],
-    required: ['Activity Code', 'Workflow Name'],
-    sample: [['', 'PUR-ORD', 'PO Raised', 'POs Raised', 'Nos', '40', '10', 'All approved indents converted to PO', 'Active', 'Purchase', 'No']],
-    help: 'New workflow needs: Activity Code, Workflow Name, KPI Name, Unit, Weightage %, Sections (Section names separated by comma inside quotes, or All). Team Workflow = Yes / No. Existing workflow (matched by Workflow ID, or Activity + Workflow Name) updates only Unit, Target, Weightage %, Expected Output, Status, Sections and Team Workflow; blank cells are left unchanged.' }
-};
-let BU_JOBS = [];
-function initBulkUpload() {
-  const sel = document.getElementById('buType');
-    // Server rules: Sections = HR only; Activities, Staff and Workflows = HR (any Section) or Manager (own Section).
-  [...sel.options].forEach(o => {
-    o.disabled = (o.value === 'section' && SESSION.role !== 'HR');
-  });
-  sel.querySelector('option[value="all"]').disabled = false;
-  if (sel.options[sel.selectedIndex].disabled) sel.value = 'all';
-  buTypeChanged();
-}
-function buTypeChanged() {
-  const type = document.getElementById('buType').value, all = type === 'all';
-  document.getElementById('buSingleBox').style.display = all ? 'none' : '';
-  document.getElementById('buAllBox').style.display = all ? '' : 'none';
-  if (all) {
-    document.getElementById('buHelp').textContent = 'One Excel file, up to 4 sheets named Sections, Activities, Staff, Workflows (use the template; each sheet has the same columns as the single uploads). Sheets are uploaded in the right order automatically. Sections are HR only, so a Manager Sections sheet is skipped; HR can upload all four sheets.';
-  } else {
-    const t = BU_TYPES[type];
-    document.getElementById('buHelp').textContent = 'Columns: ' + t.cols.join(' | ') + '.  ' + t.help;
-  }
-  buClear();
-}
-function buClear() {
-  BU_JOBS = []; BU_WB_GRIDS = null;
-  document.getElementById('buText').value = '';
-  document.getElementById('buFile').value = '';
-  document.getElementById('buXlsx').value = '';
-  document.getElementById('buUploadBtn').disabled = true;
-  document.getElementById('buResultCard').style.display = 'none';
-}
-function buCsvCell(v) { v = String(v == null ? '' : v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
-function buDownloadTemplate() {
-  if (document.getElementById('buType').value === 'all') return buDownloadTemplateAll();
-  const type = document.getElementById('buType').value, t = BU_TYPES[type];
-  const lines = [t.cols].concat(t.sample).map(r => r.map(buCsvCell).join(','));
-  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'upload-template-' + type + '.csv';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-function buFileChosen(inp) {
-  const f = inp.files && inp.files[0];
-  if (!f) return;
-  const rd = new FileReader();
-  rd.onload = () => { document.getElementById('buText').value = String(rd.result || '').replace(/^﻿/, ''); };
-  rd.readAsText(f);
-}
-// Minimal CSV/TSV parser (quotes, doubled quotes, newlines inside quotes).
-function buParse(text) {
-  text = String(text || '').replace(/^﻿/, '');
-  const firstLine = text.split(/\r?\n/)[0] || '';
-  const delim = firstLine.indexOf('\t') !== -1 ? '\t' : ',';
-  const rows = []; let row = [], cur = '', q = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (q) {
-      if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c;
-    } else if (c === '"') q = true;
-    else if (c === delim) { row.push(cur); cur = ''; }
-    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; }
-    else cur += c;
-  }
-  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
-  return rows.filter(r => r.some(x => String(x).trim() !== ''));
-}
-// Turns a parsed grid (first row = headings) into row objects + a Add/Update/Fix guess per row.
-// ctx.fileActs = lowercase Activity Codes/Names that are being uploaded in the same file (all-in-one mode).
-function buBuildRows(type, grid, ctx) {
-  ctx = ctx || {};
-  const t = BU_TYPES[type];
-  const canon = {}; t.cols.forEach(c => { canon[c.toLowerCase().replace(/[^a-z0-9%]/g, '')] = c; });
-  canon['activity'] = canon['activitycode'] || 'Activity Code';
-  canon['weightage'] = 'Weightage %'; canon['team'] = 'Team Workflow';
-  const heads = grid[0].map(h => canon[String(h).trim().toLowerCase().replace(/[^a-z0-9%]/g, '')] || null);
-  const missingCols = t.required.filter(c => heads.indexOf(c) === -1);
-  if (missingCols.length) return { error: 'Missing column(s): ' + missingCols.join(', ') + '. Use the template.' };
-  const M = MASTERS || {};
-  const low = v => String(v == null ? '' : v).trim().toLowerCase();
-  const rows = grid.slice(1).map((cells, i) => {
-    const o = { _line: i + 2 };
-    heads.forEach((h, j) => { if (h) o[h] = String(cells[j] == null ? '' : cells[j]).trim(); });
-    return o;
-  }).filter(o => Object.keys(o).some(k => k !== '_line' && o[k] !== ''));
-  const out = rows.map(o => {
-    let guess = 'Add', bad = '';
-    t.required.forEach(c => { if (!o[c]) bad = bad || (c + ' is blank'); });
-    if (!bad) {
-      if (type === 'section') guess = (M.sections || []).some(x => low(x['Section Name']) === low(o['Section Name'])) ? 'Exists (skip)' : 'Add';
-      else if (type === 'activity') guess = (M.activities || []).some(x => low(x['Activity Code']) === low(o['Activity Code'])) ? 'Update' : 'Add';
-      else if (type === 'staff') {
-        const hit = o['Staff ID'] ? (M.staff || []).some(x => String(x['Staff ID']) === o['Staff ID'])
-          : (M.staff || []).some(x => low(x['Staff Name']) === low(o['Staff Name']) && low(x['Section']) === low(o['Section']));
-        guess = hit ? 'Update' : 'Add';
-        if (guess === 'Add' && !o['Section']) bad = 'Section is blank';
-      } else {
-        const act = (M.activities || []).find(a => [a['Activity Code'], a['Activity ID'], a['Activity Name']].some(v => low(v) === low(o['Activity Code'])));
-        const inFile = ctx.fileActs && ctx.fileActs.has(low(o['Activity Code']));
-        if (!act && !inFile) bad = 'Activity "' + o['Activity Code'] + '" not found (upload Activities first)';
-        else {
-          const hit = act && (M.workflows || []).some(w => o['Workflow ID'] ? String(w['Workflow ID']) === o['Workflow ID']
-            : (w['Activity ID'] === act['Activity ID'] && low(w['Workflow Name']) === low(o['Workflow Name'])));
-          guess = hit ? 'Update' : 'Add';
-          if (guess === 'Add') ['KPI Name', 'Unit', 'Weightage %', 'Sections'].forEach(c => { if (!o[c]) bad = bad || (c + ' is blank (needed for a new workflow)'); });
-        }
-      }
-    }
-    return { o, guess, bad };
-  });
-  return { out };
-}
-function buShowPreview(blocks) { // blocks: [{type, out}]
-  const multi = blocks.length > 1;
-  const body = document.querySelector('#buTable tbody');
-  document.querySelector('#buTable thead tr').innerHTML = '<th>Line</th><th>Result</th><th>Details</th>';
-  body.innerHTML = blocks.map(b => b.out.map(x =>
-    `<tr><td>${multi ? escapeHtml(BU_TYPES[b.type].tab) + ' · ' : ''}${x.o._line}</td><td>${x.bad ? '<span class="badge Rejected">Fix</span>' : '<span class="badge">' + escapeHtml(x.guess) + '</span>'}</td><td>${escapeHtml(x.bad || Object.keys(x.o).filter(k => k !== '_line').map(k => x.o[k]).filter(Boolean).join(' · '))}</td></tr>`).join('')).join('');
-  const all = [].concat(...blocks.map(b => b.out));
-  document.getElementById('buSummary').textContent = 'Preview (expected): ' + all.filter(x => !x.bad && x.guess === 'Add').length + ' to add, ' +
-    all.filter(x => !x.bad && x.guess === 'Update').length + ' to update, ' + all.filter(x => !x.bad && x.guess.indexOf('Exists') === 0).length + ' skipped, ' +
-    all.filter(x => x.bad).length + ' need fixing (these will not be uploaded). The server re-checks every row on upload.';
-  document.getElementById('buResultCard').style.display = 'block';
-}
-function buPreview() {
-  if (document.getElementById('buType').value === 'all') return buPreviewAll();
-  const type = document.getElementById('buType').value;
-  const grid = buParse(document.getElementById('buText').value);
-  BU_JOBS = [];
-  document.getElementById('buUploadBtn').disabled = true;
-  if (grid.length < 2) { toast('Paste or choose a file: first row = headings, then at least one data row'); return; }
-  const r = buBuildRows(type, grid);
-  if (r.error) { toast(r.error); return; }
-  BU_JOBS = [{ type, rows: r.out.filter(x => !x.bad).map(x => x.o) }];
-  buShowPreview([{ type, out: r.out }]);
-  document.getElementById('buUploadBtn').disabled = BU_JOBS[0].rows.length === 0;
-}
-
-/* ---- ALL-IN-ONE EXCEL FILE: one .xlsx with up to 4 sheets (Sections, Activities, Staff, Workflows) ---- */
-const BU_SHEET_NAMES = { section: ['sections', 'section'], activity: ['activities', 'activity'], staff: ['staff', 'staffs'], workflow: ['workflows', 'workflow'] };
-const BU_ORDER = ['section', 'activity', 'staff', 'workflow'];
-const BU_ROLE_OK = { section: r => r === 'HR', activity: r => r === 'Manager' || r === 'HR', staff: r => r === 'Manager' || r === 'HR', workflow: r => r === 'Manager' || r === 'HR' };
-let BU_WB_GRIDS = null;
-function buLoadXlsxLib() {
-  if (window.XLSX) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const sc = document.createElement('script');
-    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    sc.onload = () => resolve();
-    sc.onerror = () => reject(new Error('Could not load the Excel reader (internet / blocked). Use the CSV option for one sheet at a time.'));
-    document.head.appendChild(sc);
-  });
-}
-function buCellText(v) {
-  if (v == null) return '';
-  if (v instanceof Date) { const d = new Date(v.getTime() + 12 * 3600 * 1000); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
-  return String(v).trim();
-}
-async function buXlsxChosen(inp) {
-  const f = inp.files && inp.files[0];
-  BU_WB_GRIDS = null; BU_JOBS = [];
-  document.getElementById('buUploadBtn').disabled = true;
-  if (!f) return;
-  try {
-    await buLoadXlsxLib();
-    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
-    BU_WB_GRIDS = {};
-    wb.SheetNames.forEach(n => {
-      const key = BU_ORDER.find(k => BU_SHEET_NAMES[k].indexOf(n.trim().toLowerCase()) !== -1);
-      if (!key) return;
-      const g = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' })
-        .map(r => r.map(buCellText)).filter(r => r.some(x => x !== ''));
-      if (g.length) BU_WB_GRIDS[key] = g;
-    });
-    if (!Object.keys(BU_WB_GRIDS).length) { toast('No sheets named Sections / Activities / Staff / Workflows found. Use the template.'); BU_WB_GRIDS = null; return; }
-    toast('File read: ' + Object.keys(BU_WB_GRIDS).map(k => BU_TYPES[k].tab).join(', ') + '. Now press Check / Preview.');
-  } catch (e) { toast(e.message || 'Could not read the Excel file'); }
-}
-function buPreviewAll() {
-  BU_JOBS = [];
-  document.getElementById('buUploadBtn').disabled = true;
-  if (!BU_WB_GRIDS) { toast('Choose the Excel (.xlsx) file first'); return; }
-  const low = v => String(v == null ? '' : v).trim().toLowerCase();
-  const ctx = { fileActs: new Set() };
-  if (BU_WB_GRIDS.activity && BU_WB_GRIDS.activity.length > 1) {
-    const h = BU_WB_GRIDS.activity[0].map(x => low(x).replace(/[^a-z]/g, ''));
-    const ic = h.indexOf('activitycode');
-    if (ic > -1) BU_WB_GRIDS.activity.slice(1).forEach(r => { if (r[ic]) ctx.fileActs.add(low(r[ic])); });
-  }
-  const blocks = [], skipped = [];
-  for (const type of BU_ORDER) {
-    const g = BU_WB_GRIDS[type];
-    if (!g) continue;
-    if (!BU_ROLE_OK[type](SESSION.role)) { skipped.push(BU_TYPES[type].tab); continue; }
-    if (g.length < 2) continue;
-    const r = buBuildRows(type, g, ctx);
-    if (r.error) { toast(BU_TYPES[type].tab + ' sheet: ' + r.error); return; }
-    blocks.push({ type, out: r.out });
-    BU_JOBS.push({ type, rows: r.out.filter(x => !x.bad).map(x => x.o) });
-  }
-  if (!blocks.length) { toast('Nothing to upload for your role in this file.'); return; }
-  buShowPreview(blocks);
-  if (skipped.length) document.getElementById('buSummary').textContent += ' Skipped (not allowed for ' + SESSION.role + '): ' + skipped.join(', ') + '.';
-  document.getElementById('buUploadBtn').disabled = !BU_JOBS.some(j => j.rows.length);
-}
-async function buDownloadTemplateAll() {
-  try { await buLoadXlsxLib(); } catch (e) { toast(e.message); return; }
-  const wb = XLSX.utils.book_new();
-  BU_ORDER.forEach(k => {
-    const t = BU_TYPES[k];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([t.cols].concat(t.sample)), t.tab);
-  });
-  const arr = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
-  const blob = new Blob([arr], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'upload-template-all-sheets.xlsx';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-async function buUpload() {
-  const jobs = BU_JOBS.filter(j => j.rows.length);
-  if (!jobs.length) return;
-  const btn = document.getElementById('buUploadBtn');
-  btn.disabled = true;
-  const all = [];
-  const total = jobs.reduce((n, j) => n + j.rows.length, 0);
-  let done = 0;
-  try {
-    for (const job of BU_ORDER.map(k => jobs.find(j => j.type === k)).filter(Boolean)) { // always Section -> Activity -> Staff -> Workflow
-      for (let i = 0; i < job.rows.length; i += 40) {
-        document.getElementById('buSummary').textContent = 'Uploading ' + BU_TYPES[job.type].tab + '… ' + done + ' of ' + total;
-        const res = await callApi('bulkUploadMasters', { actorRole: SESSION.role, actorUserId: SESSION.userId, type: job.type, rows: job.rows.slice(i, i + 40) });
-        (res.results || []).forEach(r => { r.sheet = BU_TYPES[job.type].tab; all.push(r); });
-        done += Math.min(40, job.rows.length - i);
-      }
-    }
-  } catch (e) {
-    toast(e.message);
-    document.getElementById('buSummary').textContent = 'Stopped: ' + e.message + '. Rows already processed are saved; check the list below before uploading again (re-uploading is safe).';
-  }
-  const multi = jobs.length > 1;
-  const label = { added: 'Added', updated: 'Updated', unchanged: 'No change', error: 'Failed' };
-  document.querySelector('#buTable tbody').innerHTML = all.map(r =>
-    `<tr><td>${multi ? escapeHtml(r.sheet) + ' · ' : ''}${escapeHtml(r.line)}</td><td><span class="badge ${r.status === 'error' ? 'Rejected' : ''}">${label[r.status] || escapeHtml(r.status)}</span></td><td>${escapeHtml((r.id ? r.id + ' · ' : '') + (r.message || ''))}</td></tr>`).join('');
-  const c = k => all.filter(r => r.status === k).length;
-  if (all.length) document.getElementById('buSummary').textContent = 'Done: ' + c('added') + ' added, ' + c('updated') + ' updated, ' + c('unchanged') + ' no change, ' + c('error') + ' failed. Failed rows were not saved; fix them and upload again (already-saved rows are matched, not duplicated).';
-  document.getElementById('buResultCard').style.display = 'block';
-  btn.disabled = false;
-  await loadMastersData().catch(() => {}); // refresh dropdowns, Section lists, Working Register at once
-}
-
 // ---- ADD WORKFLOW (Manager only) - Multi-Section Phase 1 ----
 function openAddWorkflow() {
   const acts = (MASTERS.activities || []);
@@ -4435,14 +4113,13 @@ async function saveWorkflowEdit() {
   const workflowId = document.getElementById('editWfFormCard').dataset.workflowId;
   if (!workflowId) return;
   if (!document.getElementById('editWfUnit').value.trim()) { toast(T('unitRequired')); return; }
-  if (!readEditWfSections()) { toast('Select at least one Section (or All Sections)'); return; }
   const fields = {
     'Unit': document.getElementById('editWfUnit').value.trim(),
     'Target': document.getElementById('editWfTarget').value,
     'Weightage %': document.getElementById('editWfWeightage').value,
     'Expected Output': document.getElementById('editWfExpectedOutput').value,
     'Status': document.getElementById('editWfStatus').value,
-    'Sections': readEditWfSections(),
+    'Sections': document.getElementById('editWfSections').value,
     'Team Workflow': document.getElementById('editWfTeam').value
   };
   try {
@@ -5010,8 +4687,46 @@ function hrPeriodParams() {
   return {
     periodLabel: document.getElementById('hrPeriod').value.trim(),
     from: document.getElementById('hrFrom').value,
-    to: document.getElementById('hrTo').value
+    to: document.getElementById('hrTo').value,
+    section: (document.getElementById('hrSection') || {}).value || ''
   };
+}
+
+// SECTION-WISE APPRAISAL (Nov 2026): every HR Appraisal call needs ONE Section.
+function hrNeedSection(silent) {
+  const el = document.getElementById('hrSection');
+  if (el && el.value) return true;
+  if (!silent) toast('Please select a Section first (HR Appraisal works on one Section at a time).');
+  return false;
+}
+function hrFillStaffDropdowns() {
+  const sec = (document.getElementById('hrSection') || {}).value || '';
+  const key = s => String(s == null ? '' : s).trim().toLowerCase() || 'stores';
+  const staffOptions = MASTERS.staff.filter(s => s['Status'] !== 'Inactive' && sec && key(s['Section']) === key(sec))
+    .map(s => `<option value="${escapeHtml(s['Staff ID'])}">${escapeHtml(s['Staff Name'])}</option>`).join('');
+  ['rcStaff', 'dmStaff', 'msStaff', 'trStaff', 'swStaff'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = staffOptions; });
+  const f = document.getElementById('trFilterStaff');
+  if (f) f.innerHTML = `<option value="">${T('allStaff')}</option>` + staffOptions;
+}
+function hrFillSectionDropdown() {
+  const el = document.getElementById('hrSection');
+  let names = (MASTERS.sections || []).map(x => String(x['Section Name']).trim()).filter(Boolean);
+  if (SESSION.role === 'Manager') {
+    const mine = String(getSessionSectionId() || '').trim() || 'Stores';
+    el.innerHTML = `<option value="${escapeHtml(mine)}">${escapeHtml(mine)}</option>`;
+    el.value = mine; el.disabled = true; // Manager: own Section only
+  } else {
+    if (names.indexOf('Stores') === -1) names.unshift('Stores');
+    el.innerHTML = '<option value="">-- Select Section --</option>' + names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    el.disabled = false;
+  }
+}
+function hrSectionChanged() {
+  hrFillStaffDropdowns();
+  lastFullAppraisal = [];
+  const tb = document.querySelector('#hrScorecardTable tbody');
+  if (tb) tb.innerHTML = '';
+  if (hrNeedSection(true)) runFullAppraisal();
 }
 
 function initHrAppraisal() {
@@ -5023,11 +4738,8 @@ function initHrAppraisal() {
     document.getElementById('hrTo').valueAsDate = now;
     document.getElementById('dmMemoDate').valueAsDate = now;
 
-    const staffOptions = MASTERS.staff.filter(s => s['Status'] !== 'Inactive')
-      .map(s => `<option value="${escapeHtml(s['Staff ID'])}">${escapeHtml(s['Staff Name'])}</option>`).join('');
-    document.getElementById('rcStaff').innerHTML = staffOptions;
-    document.getElementById('dmStaff').innerHTML = staffOptions;
-    document.getElementById('msStaff').innerHTML = staffOptions;
+    hrFillSectionDropdown();
+    hrFillStaffDropdowns();
 
     document.getElementById('rcType').innerHTML = RECOGNITION_TYPES.map(t =>
       `<option value="${escapeHtml(t.type)}">${escapeHtml(t.type)} (+${t.isRange ? t.range[0] + '..' + t.range[1] : t.bonus})</option>`).join('');
@@ -5040,15 +4752,12 @@ function initHrAppraisal() {
     // Training options come from MASTERS.trainingMaster (getMasters()) -
     // never hard-coded here, so an HR-added Training_Master row shows up
     // automatically after the next login/masters refresh.
-    document.getElementById('trStaff').innerHTML = staffOptions;
     document.getElementById('trTraining').innerHTML = (MASTERS.trainingMaster || [])
       .map(t => `<option value="${escapeHtml(t['Training ID'])}">${escapeHtml(t['Training Name'])} (${escapeHtml(t['Training ID'])})</option>`).join('')
       || `<option value="">${T('noActiveTrainings')}</option>`;
-    document.getElementById('trFilterStaff').innerHTML =
-      `<option value="">${T('allStaff')}</option>` + staffOptions;
     document.getElementById('trDate').valueAsDate = now;
   }
-  runFullAppraisal();
+  if (hrNeedSection(true)) runFullAppraisal();
 }
 
 function setHrTab(id) {
@@ -5058,6 +4767,7 @@ function setHrTab(id) {
   if (id === 'hrMemoMgmt') loadMemoManagementTable();
   if (id === 'hrManual') loadManualScoresTable();
   if (id === 'hrTraining') loadTrainingRegisterTable();
+  if (id === 'hrSpecialWork') loadSpecialWorkTable();
   if (id === 'hrSummary') loadHrSummary();
   if (id === 'hrDashboard') { loadHrDashboard(); loadHrLiveDashboard(); }
   if (id === 'hrFormulaVerify') runFormulaVerification();
@@ -5070,6 +4780,7 @@ function setHrTab(id) {
 async function runFormulaVerification() {
   const badge = document.getElementById('fvOverallBadge');
   const tbody = document.querySelector('#fvTable tbody');
+  if (!hrNeedSection()) { badge.textContent = '-'; return; }
   badge.textContent = '...';
   try {
     const params = hrActorParams(hrPeriodParams());
@@ -5108,6 +4819,7 @@ function rcTypeChanged() {
 async function runFullAppraisal() {
   const p = hrPeriodParams();
   if (!p.periodLabel || !p.from || !p.to) { toast(T('enterPeriodFromTo')); return; }
+  if (!hrNeedSection()) return;
   try { lastFullAppraisal = await callApi('getFullAppraisal', p); } catch (e) { toast(e.message); return; }
   showHrAttendanceGapWarning(p.from, p.to); // advisory only, never blocks or changes scores
   document.querySelector('#hrScorecardTable tbody').innerHTML = lastFullAppraisal.map(a => a.hrPending ? `
@@ -5183,6 +4895,72 @@ async function addRecognitionEntry() {
     document.getElementById('rcReason').value = '';
     loadRecognitionsTable();
     runFullAppraisal();
+  } catch (e) { toast(e.message); }
+}
+
+/* ============================================================
+   SPECIAL WORK (Nov 2026) - Manager assigns/recommends, HR approves
+   ============================================================ */
+async function assignSpecialWorkEntry() {
+  const periodLabel = document.getElementById('hrPeriod').value.trim();
+  const staffId = document.getElementById('swStaff').value;
+  const title = document.getElementById('swTitle').value.trim();
+  if (!hrNeedSection()) return;
+  if (!periodLabel) { toast(T('setPeriodFirst')); return; }
+  if (!staffId) { toast('Select a staff'); return; }
+  if (!title) { toast('Work title is required'); return; }
+  try {
+    await callApi('assignSpecialWork', hrActorParams({ staffId, periodLabel, title, description: document.getElementById('swDesc').value.trim() }));
+    document.getElementById('swTitle').value = ''; document.getElementById('swDesc').value = '';
+    toast('Special work assigned');
+    loadSpecialWorkTable();
+  } catch (e) { toast(e.message); }
+}
+
+async function loadSpecialWorkTable() {
+  const periodLabel = document.getElementById('hrPeriod').value.trim();
+  const isHR = SESSION.role === 'HR', isMgr = SESSION.role === 'Manager';
+  document.getElementById('swAssignCard').style.display = (isHR || isMgr) ? '' : 'none';
+  if (!periodLabel) return;
+  let rows = [];
+  try { rows = await callApi('getSpecialWork', { periodLabel }); } catch (e) { toast(e.message); return; }
+  const sec = (document.getElementById('hrSection') || {}).value || '';
+  if (sec) rows = rows.filter(r => String(r['Section'] || 'Stores').trim().toLowerCase() === sec.trim().toLowerCase());
+  const btn = (id, dec, label, cls) => `<button class="btn ${cls || 'btn-outline'} btn-sm" data-action="specialWorkAct" data-id="${escapeHtml(id)}" data-decision="${dec}">${label}</button> `;
+  document.querySelector('#swTable tbody').innerHTML = rows.map(r => {
+    const st = r['Status'];
+    let acts = '';
+    if (isMgr && st === 'Assigned') acts += btn(r['Work ID'], 'recommend', 'Complete &amp; Recommend', 'btn-brown');
+    if (isHR && st === 'Recommended') acts += btn(r['Work ID'], 'approve', 'Approve', 'btn-brown') + btn(r['Work ID'], 'reject', 'Reject');
+    if ((isMgr || isHR) && (st === 'Assigned' || st === 'Recommended')) acts += btn(r['Work ID'], 'cancel', 'Cancel');
+    const marks = st === 'Approved' ? '+' + escapeHtml(r['HR Marks']) : (st === 'Recommended' ? escapeHtml(r['Recommended Marks']) + ' (proposed)' : '');
+    const notes = [r['Description'], r['Completion Note'] ? 'Done: ' + r['Completion Note'] : '', r['HR Remark'] ? 'HR: ' + r['HR Remark'] : ''].filter(Boolean).map(escapeHtml).join(' | ');
+    return `<tr><td>${escapeHtml(r['Staff Name'])}</td><td>${escapeHtml(r['Work Title'])}</td><td>${escapeHtml(st)}</td><td>${marks}</td><td>${notes}</td><td>${acts}</td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty">None for this Period / Section</td></tr>';
+}
+
+async function specialWorkAct(id, decision) {
+  try {
+    if (decision === 'recommend') {
+      const marks = prompt('Marks to recommend (1-5):', '3'); if (marks === null) return;
+      const note = prompt('What was completed? (required)'); if (!note) return;
+      await callApi('recommendSpecialWork', hrActorParams({ workId: id, marks: Number(marks), completionNote: note }));
+      toast('Recommended - sent to HR for approval');
+    } else if (decision === 'approve') {
+      const marks = prompt('Approve marks (1-5). Leave as is to accept the Manager\'s recommendation:', '');
+      if (marks === null) return;
+      await callApi('decideSpecialWork', hrActorParams({ workId: id, decision: 'Approve', marks: marks === '' ? undefined : Number(marks), remark: '' }));
+      toast('Approved - marks added to Recognition'); runFullAppraisal();
+    } else if (decision === 'reject') {
+      const remark = prompt('Reason for rejecting (required):'); if (!remark) return;
+      await callApi('decideSpecialWork', hrActorParams({ workId: id, decision: 'Reject', remark }));
+      toast('Rejected');
+    } else if (decision === 'cancel') {
+      if (!confirm('Cancel this special work?')) return;
+      await callApi('cancelSpecialWork', hrActorParams({ workId: id }));
+      toast('Cancelled');
+    }
+    loadSpecialWorkTable();
   } catch (e) { toast(e.message); }
 }
 
@@ -5450,8 +5228,9 @@ async function runAutoHrPreparation() {
   const from = document.getElementById('hrFrom').value;
   const to = document.getElementById('hrTo').value;
   if (!periodLabel || !from || !to) { toast(T('setPeriodFirst')); return; }
+  if (!hrNeedSection()) return;
   try {
-    const rows = await callApi('getAutoHRAppraisal', hrActorParams({periodLabel, from, to}));
+    const rows = await callApi('getAutoHRAppraisal', hrActorParams({periodLabel, from, to, section: document.getElementById('hrSection').value}));
     const pending = rows.filter(r => r.autoReviewRequired).length;
     // Auto mode is deliberately preview-only: it never overwrites HR Manual Scores.
     // Run Appraisal will use the same source-derived values for staff without a manual row.
@@ -5563,6 +5342,7 @@ async function submitManualScoreEntry() {
 async function loadManualScoresTable() {
   const p = hrPeriodParams();
   if (!p.periodLabel) return;
+  if (!hrNeedSection(true)) return;
   // SPEED (Sep 2026): fetch the manual scores and the automatic Training scores
   // TOGETHER (was one after the other = two waits in a row).
   const _fullP = (p.from && p.to)
@@ -5805,6 +5585,7 @@ async function openTrainingDetails(staffId, fromOverride, toOverride, periodOver
 async function loadHrSummary() {
   const p = hrPeriodParams();
   if (!p.periodLabel || !p.from || !p.to) return;
+  if (!hrNeedSection(true)) return;
   let s;
   try { s = await callApi('getHRManagementSummary', p); } catch (e) { toast(e.message); return; }
   const row = (name, score, extra) => `<li><span>${escapeHtml(name)}</span><span class="tag">${fnum(score)}${extra || ''}</span></li>`;
@@ -5824,6 +5605,7 @@ async function loadHrSummary() {
 async function loadHrDashboard() {
   const p = hrPeriodParams();
   if (!p.periodLabel || !p.from || !p.to) return;
+  if (!hrNeedSection(true)) return;
   let d;
   try { d = await callApi('getHRDashboard', p); } catch (e) { toast(e.message); return; }
 
@@ -5911,8 +5693,9 @@ function renderHrReviewPending(list) {
 async function checkHrReviewPending() {
   const periodLabel = document.getElementById('hrPeriod').value.trim();
   if (!periodLabel) { toast(T('enterPeriodFromTo')); return; }
+  if (!hrNeedSection()) return;
   try {
-    const list = await callApi('getHRReviewPendingList', hrActorParams({ periodLabel }));
+    const list = await callApi('getHRReviewPendingList', hrActorParams({ periodLabel, section: document.getElementById('hrSection').value }));
     renderHrReviewPending(list);
   } catch (e) { toast(e.message); }
 }
@@ -5920,21 +5703,24 @@ async function checkHrReviewPending() {
 async function saveHrSnapshot() {
   const p = hrPeriodParams();
   if (!p.periodLabel || !p.from || !p.to) { toast(T('enterPeriodFromTo')); return; }
+  if (!hrNeedSection()) return;
   try {
     const r = await callApi('saveAppraisalSnapshot', hrActorParams(p));
-    toast(T('snapshotSavedFor') + ' ' + r.periodLabel + ' (' + r.staffCount + ' ' + T('staffLower') + ')');
+    toast(T('snapshotSavedFor') + ' ' + r.periodLabel + ' [' + r.section + '] (' + r.staffCount + ' ' + T('staffLower') + ')');
   } catch (e) { toast(e.message); }
 }
 
 async function lockHrSnapshot() {
   const periodLabel = document.getElementById('hrPeriod').value.trim();
   if (!periodLabel) { toast(T('enterPeriodFromTo')); return; }
-  if (!confirm('Approve and lock "' + periodLabel + '"? Once locked, Save Snapshot cannot overwrite it until it is re-opened.')) return;
+  if (!hrNeedSection()) return;
+  const section = document.getElementById('hrSection').value;
+  if (!confirm('Approve and lock "' + periodLabel + '" for Section "' + section + '"? Once locked, Save Snapshot cannot overwrite it until it is re-opened. Other Sections are not affected.')) return;
   try {
     const from = document.getElementById('hrFrom').value, to = document.getElementById('hrTo').value;
     let r;
     try {
-      r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel, from, to }));
+      r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel, from, to, section }));
     } catch (e) {
       // Lock guard (Oct 2026): server blocks the lock while HR ratings / attendance are incomplete.
       if (!String(e.message || '').startsWith('LOCK_BLOCKED:')) throw e;
@@ -5942,7 +5728,7 @@ async function lockHrSnapshot() {
       const reason = prompt('Cannot lock "' + periodLabel + '" yet:\n' + details +
         '\n\nBest: Cancel, complete these, then lock again.\nTo lock anyway, type a reason (it is recorded in the Audit Log):');
       if (!reason || !reason.trim()) { toast('Lock cancelled - complete the pending items first.'); return; }
-      r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel, from, to, overrideReason: reason.trim() }));
+      r = await callApi('lockAppraisalSnapshot', hrActorParams({ periodLabel, from, to, section, overrideReason: reason.trim() }));
     }
     // GO-LIVE FIX (audit item 2, Sep 2026): "warning, not block" - the lock
     // already went through (never held up by this); pendingReview (if any)
@@ -5950,18 +5736,20 @@ async function lockHrSnapshot() {
     // moment of locking without a second call.
     renderHrReviewPending(r.pendingReview || []);
     const warn = (r.pendingReview && r.pendingReview.length) ? ' - ' + r.pendingReview.length + ' ' + T('lockedWithPendingReview') : '';
-    toast('Locked ' + r.periodLabel + ' (' + r.staffCount + ' staff) as Approved.' + warn);
+    toast('Locked ' + r.periodLabel + ' [' + section + '] (' + r.staffCount + ' staff) as Approved.' + warn);
   } catch (e) { toast(e.message); }
 }
 
 async function reopenHrSnapshot() {
   const periodLabel = document.getElementById('hrPeriod').value.trim();
   if (!periodLabel) { toast(T('enterPeriodFromTo')); return; }
-  const reason = prompt('Reason for re-opening the approved period "' + periodLabel + '" (required, will be audited):');
+  if (!hrNeedSection()) return;
+  const section = document.getElementById('hrSection').value;
+  const reason = prompt('Reason for re-opening the approved period "' + periodLabel + '" for Section "' + section + '" (required, will be audited):');
   if (!reason) return;
   try {
-    const r = await callApi('reopenAppraisalSnapshot', hrActorParams({ periodLabel, reason }));
-    toast('Re-opened ' + r.periodLabel + ' for revision.');
+    const r = await callApi('reopenAppraisalSnapshot', hrActorParams({ periodLabel, section, reason }));
+    toast('Re-opened ' + r.periodLabel + ' [' + section + '] for revision.');
   } catch (e) { toast(e.message); }
 }
 
@@ -6693,11 +6481,11 @@ async function loadMastersView() {
   // Phase 2 (Multi-Section): HR creates/edits Sections; a Section Manager only sees his own Section and edits Activities.
   const isHRUser = SESSION.role === 'HR';
   const asb = document.getElementById('addSectionBtn'); if (asb) asb.style.display = isHRUser ? '' : 'none';
-  const aab = document.getElementById('addActivityBtn'); if (aab) aab.style.display = '';
-  // HR and Managers both see the Activity and Workflow cards (HR for every Section, a Manager for his own).
+  const aab = document.getElementById('addActivityBtn'); if (aab) aab.style.display = isHRUser ? 'none' : '';
+  // HR's Master Data page is for Staff + Section only: hide the Activity and Workflow cards for HR.
   ['activityTable', 'workflowTable'].forEach(id => {
     const card = document.getElementById(id) && document.getElementById(id).closest('.card');
-    if (card) card.style.display = '';
+    if (card) card.style.display = isHRUser ? 'none' : '';
   });
   document.querySelector('#sectionTable tbody').innerHTML = (MASTERS.sections || []).map(s => `
     <tr><td>${escapeHtml(s['Section ID'])}</td><td>${escapeHtml(s['Section Name'])}</td>
@@ -6705,7 +6493,7 @@ async function loadMastersView() {
   `).join('');
   document.querySelector('#activityTable tbody').innerHTML = (MASTERS.activities || []).map(a => `
     <tr><td>${escapeHtml(a['Activity ID'])}</td><td>${escapeHtml(a['Activity Code'])}</td><td>${escapeHtml(a['Activity Name'])}</td>
-    <td><button class="btn btn-outline btn-sm" data-action="openActivityForm" data-id="${escapeHtml(a['Activity ID'])}">${T('editBtn')}</button></td></tr>
+    <td>${isHRUser ? '' : `<button class="btn btn-outline btn-sm" data-action="openActivityForm" data-id="${escapeHtml(a['Activity ID'])}">${T('editBtn')}</button>`}</td></tr>
   `).join('');
   document.querySelector('#workflowTable tbody').innerHTML = MASTERS.workflows.map(w => `
     <tr><td>${escapeHtml(w['Activity Name'])}</td><td>${escapeHtml(w['Workflow Name'])}</td><td>${escapeHtml(w['KPI Name'])}</td><td>${escapeHtml(w['Unit'])}</td>
