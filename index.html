@@ -938,6 +938,7 @@ main.content{
           <button class="subtab-btn hr-edit-only" data-subtab="hrTraining" onclick="setHrTab('hrTraining')" data-i18n="tabTraining">🎓 Training</button>
           <button class="subtab-btn" data-subtab="hrSpecialWork" onclick="setHrTab('hrSpecialWork')">⭐ Special Work</button>
           <button class="subtab-btn" data-subtab="hrSummary" onclick="setHrTab('hrSummary')" data-i18n="tabHrSummary">📋 HR Summary</button>
+          <button class="subtab-btn" data-subtab="hrGradeTrend" onclick="setHrTab('hrGradeTrend')">📅 Grade Trend</button>
           <button class="subtab-btn" data-subtab="hrDashboard" onclick="setHrTab('hrDashboard')" data-i18n="tabDeptDashboard">📈 Department Dashboard</button>
           <button class="subtab-btn" data-subtab="hrFormulaVerify" onclick="setHrTab('hrFormulaVerify')" data-i18n="formulaVerifyTitle">🔎 Formula Verification</button>
         </div>
@@ -1117,6 +1118,27 @@ main.content{
         </div>
 
         <!-- DEPARTMENT DASHBOARD -->
+        <!-- GRADE TREND: last N saved months, grade-wise comparison -->
+        <div class="subview" id="subview-hrGradeTrend">
+          <div class="card">
+            <h3 style="margin-bottom:6px;font-size:14px;color:var(--coffee-700)">Grade Trend - Last Months Comparison</h3>
+            <p class="li-target-info">Uses the <b>saved Snapshots</b> of the selected Section. Months without a saved Snapshot are not shown. Section is taken from the Section box above.</p>
+            <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+              <div><label for="gtMonths">Months</label><select id="gtMonths"><option value="3" selected>Last 3 months</option><option value="2">Last 2 months</option><option value="4">Last 4 months</option><option value="6">Last 6 months</option></select></div>
+              <button class="btn btn-brown" onclick="loadGradeTrend()">Show Report</button>
+              <button class="btn btn-outline" onclick="exportGradeTrendCsv()">Export CSV</button>
+            </div>
+          </div>
+          <div class="card" id="gtResult" style="display:none;">
+            <div id="gtNote" style="color:#8a6d1d;font-size:13px;margin-bottom:6px;"></div>
+            <h3 style="margin-bottom:6px;font-size:14px;color:var(--coffee-700)">Grade-wise Head Count</h3>
+            <div class="table-wrap"><table id="gtCounts"><thead></thead><tbody></tbody></table></div>
+            <div id="gtHighlights" style="margin:10px 0;font-size:13px;line-height:1.6;"></div>
+            <h3 style="margin:10px 0 6px;font-size:14px;color:var(--coffee-700)">Staff-wise Score &amp; Grade</h3>
+            <div class="table-wrap"><table id="gtTable"><thead></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+
         <div class="subview" id="subview-hrDashboard">
           <h3 style="margin-bottom:10px;font-size:14px;color:var(--coffee-700)" data-i18n="liveHrDashboard">Today's Live HR Dashboard</h3>
           <div class="grid grid-4" id="hrLiveStats"></div>
@@ -4801,6 +4823,7 @@ function setHrTab(id) {
   if (id === 'hrManual') loadManualScoresTable();
   if (id === 'hrTraining') loadTrainingRegisterTable();
   if (id === 'hrSpecialWork') loadSpecialWorkTable();
+  if (id === 'hrGradeTrend' && hrNeedSection(true)) loadGradeTrend();
   if (id === 'hrSummary') loadHrSummary();
   if (id === 'hrDashboard') { loadHrDashboard(); loadHrLiveDashboard(); }
   if (id === 'hrFormulaVerify') runFormulaVerification();
@@ -5076,6 +5099,47 @@ async function buRun(commit) {
     else sb.disabled = !(sm.errors === 0 && sm.ok > 0);
   } catch (e) { toast(e.message); sb.disabled = true; }
   finally { cb.disabled = false; }
+}
+
+/* ============================================================
+   GRADE TREND REPORT (Nov 2026) - last N saved months, per Section
+   ============================================================ */
+let lastGradeTrend = null;
+async function loadGradeTrend() {
+  if (!hrNeedSection()) return;
+  try {
+    const d = await callApi('getGradeTrendReport', hrActorParams({ section: document.getElementById('hrSection').value, months: document.getElementById('gtMonths').value }));
+    lastGradeTrend = d;
+    document.getElementById('gtResult').style.display = '';
+    document.getElementById('gtNote').textContent = d.note || '';
+    if (!d.periods.length) { document.getElementById('gtNote').textContent = 'No saved Snapshots for this Section yet. Save Snapshot in HR Appraisal first.'; }
+    const gcls = g => ({ 'A+': '#1b5e20', 'A': '#2e7d32', 'B': '#1565c0', 'C': '#ef6c00', 'D': '#c62828' }[g] || '#555');
+    const gb = g => g ? `<b style="color:${gcls(g)}">${escapeHtml(g)}</b>` : '-';
+    document.querySelector('#gtCounts thead').innerHTML = '<tr><th>Month</th>' + d.gradeOrder.map(g => `<th>${escapeHtml(g)}</th>`).join('') + '<th>Total</th></tr>';
+    document.querySelector('#gtCounts tbody').innerHTML = d.gradeCounts.map(c =>
+      `<tr><td>${escapeHtml(c.period)}</td>${d.gradeOrder.map(g => `<td>${c[g] || 0}</td>`).join('')}<td>${c.total}</td></tr>`).join('');
+    const list = a => a.length ? a.map(escapeHtml).join(', ') : '-';
+    document.getElementById('gtHighlights').innerHTML =
+      `🏅 <b>Consistent top (A+/A every month):</b> ${list(d.highlights.consistentTop)}<br>` +
+      `📉 <b>Declining:</b> ${list(d.highlights.declining)}<br>` +
+      `⚠️ <b>Need attention (latest month C/D):</b> ${list(d.highlights.needAttention)}`;
+    document.querySelector('#gtTable thead').innerHTML = '<tr><th>Staff</th>' + d.periods.map(p => `<th>${escapeHtml(p)}</th>`).join('') + '<th>Average</th><th>Change</th><th>Trend</th></tr>';
+    const arrow = { Improving: '↑ Improving', Declining: '↓ Declining', Steady: '→ Steady' };
+    document.querySelector('#gtTable tbody').innerHTML = d.rows.map(r =>
+      `<tr><td>${escapeHtml(r.staffName)}<br><small style="color:#888">${escapeHtml(r.designation || '')}</small></td>` +
+      r.months.map(m => m ? `<td>${m.score} ${gb(m.grade)}${m.status && m.status !== 'Approved' ? '<br><small style="color:#999">' + escapeHtml(m.status) + '</small>' : ''}</td>` : '<td style="color:#bbb">-</td>').join('') +
+      `<td>${r.average} ${gb(r.averageGrade)}</td><td>${r.change === '' ? '-' : (r.change > 0 ? '+' : '') + r.change}</td><td>${escapeHtml(arrow[r.trend] || r.trend)}</td></tr>`).join('') || `<tr><td colspan="${d.periods.length + 4}" class="empty">No data</td></tr>`;
+  } catch (e) { toast(e.message); }
+}
+function exportGradeTrendCsv() {
+  const d = lastGradeTrend; if (!d || !d.rows.length) { toast('Show the report first'); return; }
+  const esc = v => { v = String(v == null ? '' : v); if (/^[=+\-@]/.test(v) && !/^[-+]?\d+(\.\d+)?$/.test(v)) v = "'" + v; return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const head = ['Section', 'Staff ID', 'Staff Name'].concat(d.periods.reduce((a, p) => a.concat([p + ' Score', p + ' Grade']), [])).concat(['Average', 'Average Grade', 'Change', 'Trend']);
+  const lines = [head.map(esc).join(',')].concat(d.rows.map(r => [d.section, r.staffId, r.staffName]
+    .concat(r.months.reduce((a, m) => a.concat(m ? [m.score, m.grade] : ['', '']), [])).concat([r.average, r.averageGrade, r.change, r.trend]).map(esc).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'grade-trend-' + d.section + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
 }
 
 async function loadRecognitionsTable() {
