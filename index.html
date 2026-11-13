@@ -4877,7 +4877,7 @@ async function runFullAppraisal() {
   if (!p.periodLabel || !p.from || !p.to) { toast(T('enterPeriodFromTo')); return; }
   if (!hrNeedSection()) return;
   try { lastFullAppraisal = await callApi('getFullAppraisal', p); } catch (e) { toast(e.message); return; }
-  showHrAttendanceGapWarning(p.from, p.to); // advisory only, never blocks or changes scores
+  showHrAttendanceGapWarning(p.from, p.to, p.section); // advisory only, never blocks or changes scores
   document.querySelector('#hrScorecardTable tbody').innerHTML = lastFullAppraisal.map(a => a.hrPending ? `
     <tr>
       <td>${escapeHtml(a.staffName)}</td>
@@ -4903,13 +4903,13 @@ async function runFullAppraisal() {
     </tr>`).join('') || `<tr><td colspan="19" class="empty">${T('noActiveStaffData')}</td></tr>`;
 }
 
-async function showHrAttendanceGapWarning(from, to) {
+async function showHrAttendanceGapWarning(from, to, section) {
   const box = document.getElementById('hrAttGapWarning');
   if (!box) return;
   box.innerHTML = '';
   if (!SESSION || (SESSION.role !== 'Manager' && SESSION.role !== 'HR')) return;
   let d;
-  try { d = await callApi('getAttendanceGapReport', { from, to }); } catch (e) { return; } // advisory: fail silently
+  try { d = await callApi('getAttendanceGapReport', { from, to, section: section || '' }); } catch (e) { return; } // advisory: fail silently (section-wise: only the selected Section's staff)
   const bad = (d.staff || []).filter(r => r.unmarkedDays > 0);
   if (!bad.length) return;
   const items = bad.map(r => `<li><strong>${escapeHtml(r.staffName)}</strong>: ${r.unmarkedDays} - ${escapeHtml(r.unmarkedDates.slice(0, 12).map(k => k.slice(8, 10) + '-' + k.slice(5, 7)).join(', '))}${r.unmarkedDates.length > 12 ? ' …' : ''}</li>`).join('');
