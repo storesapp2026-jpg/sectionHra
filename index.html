@@ -1126,7 +1126,7 @@ main.content{
             <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
               <div><label for="gtMonths">Months</label><select id="gtMonths"><option value="3" selected>Last 3 months</option><option value="2">Last 2 months</option><option value="4">Last 4 months</option><option value="6">Last 6 months</option></select></div>
               <button class="btn btn-brown" onclick="loadGradeTrend()">Show Report</button>
-              <button class="btn btn-outline" onclick="exportGradeTrendCsv()">Export CSV</button>
+              <button class="btn btn-outline" onclick="exportGradeTrendExcel()">Export Excel</button>
             </div>
           </div>
           <div class="card" id="gtResult" style="display:none;">
@@ -4909,7 +4909,7 @@ async function showHrAttendanceGapWarning(from, to, section) {
   box.innerHTML = '';
   if (!SESSION || (SESSION.role !== 'Manager' && SESSION.role !== 'HR')) return;
   let d;
-  try { d = await callApi('getAttendanceGapReport', { from, to, section: section || '' }); } catch (e) { return; } // advisory: fail silently (section-wise: only the selected Section's staff)
+  try { d = await callApi('getAttendanceGapReport', { from, to, section }); } catch (e) { return; } // advisory: fail silently (section = the Section chosen in HR Appraisal)
   const bad = (d.staff || []).filter(r => r.unmarkedDays > 0);
   if (!bad.length) return;
   const items = bad.map(r => `<li><strong>${escapeHtml(r.staffName)}</strong>: ${r.unmarkedDays} - ${escapeHtml(r.unmarkedDates.slice(0, 12).map(k => k.slice(8, 10) + '-' + k.slice(5, 7)).join(', '))}${r.unmarkedDates.length > 12 ? ' …' : ''}</li>`).join('');
@@ -5131,15 +5131,20 @@ async function loadGradeTrend() {
       `<td>${r.average} ${gb(r.averageGrade)}</td><td>${r.change === '' ? '-' : (r.change > 0 ? '+' : '') + r.change}</td><td>${escapeHtml(arrow[r.trend] || r.trend)}</td></tr>`).join('') || `<tr><td colspan="${d.periods.length + 4}" class="empty">No data</td></tr>`;
   } catch (e) { toast(e.message); }
 }
-function exportGradeTrendCsv() {
+async function exportGradeTrendExcel() {
   const d = lastGradeTrend; if (!d || !d.rows.length) { toast('Show the report first'); return; }
-  const esc = v => { v = String(v == null ? '' : v); if (/^[=+\-@]/.test(v) && !/^[-+]?\d+(\.\d+)?$/.test(v)) v = "'" + v; return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-  const head = ['Section', 'Staff ID', 'Staff Name'].concat(d.periods.reduce((a, p) => a.concat([p + ' Score', p + ' Grade']), [])).concat(['Average', 'Average Grade', 'Change', 'Trend']);
-  const lines = [head.map(esc).join(',')].concat(d.rows.map(r => [d.section, r.staffId, r.staffName]
-    .concat(r.months.reduce((a, m) => a.concat(m ? [m.score, m.grade] : ['', '']), [])).concat([r.average, r.averageGrade, r.change, r.trend]).map(esc).join(',')));
-  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'grade-trend-' + d.section + '.csv';
-  document.body.appendChild(a); a.click(); a.remove();
+  // One Excel row per staff: Section, Staff ID, Name, then Score+Grade for every saved month, then Average/Change/Trend.
+  const rows = d.rows.map(r => {
+    const o = { 'Section': d.section, 'Staff ID': r.staffId, 'Staff Name': r.staffName };
+    d.periods.forEach((p, i) => {
+      const m = r.months[i];
+      o[p + ' Score'] = m ? m.score : '';
+      o[p + ' Grade'] = m ? m.grade : '';
+    });
+    o['Average'] = r.average; o['Average Grade'] = r.averageGrade; o['Change'] = r.change; o['Trend'] = r.trend;
+    return o;
+  });
+  await exportXlsx(rows, 'grade-trend-' + d.section + '.xlsx');
 }
 
 async function loadRecognitionsTable() {
