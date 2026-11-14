@@ -1397,7 +1397,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbw_mK87GjxuW0P_rBVftYcdnUo7R84ygDKsecsI3Id1gTuhpPdLrmXM9VE0H1G1r-mu8w/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyIz04Ijc6I25yY1OMxxVS3EjVL3mytQqDuiaDjJg_b-Aza-qC5uqpBY-GxJTgO5jzpcQ/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -5112,7 +5112,7 @@ async function loadGradeTrend() {
     lastGradeTrend = d;
     document.getElementById('gtResult').style.display = '';
     document.getElementById('gtNote').textContent = d.note || '';
-    if (!d.periods.length) { document.getElementById('gtNote').textContent = 'No saved Snapshots for this Section yet. Save Snapshot in HR Appraisal first.'; }
+    if (!d.periods.length) { document.getElementById('gtNote').textContent = (d.note ? d.note + ' ' : '') + 'No completed-month Snapshots for this Section yet. Save Snapshot in HR Appraisal after the month ends.'; }
     const gcls = g => ({ 'A+': '#1b5e20', 'A': '#2e7d32', 'B': '#1565c0', 'C': '#ef6c00', 'D': '#c62828' }[g] || '#555');
     const gb = g => g ? `<b style="color:${gcls(g)}">${escapeHtml(g)}</b>` : '-';
     document.querySelector('#gtCounts thead').innerHTML = '<tr><th>Month</th>' + d.gradeOrder.map(g => `<th>${escapeHtml(g)}</th>`).join('') + '<th>Total</th></tr>';
