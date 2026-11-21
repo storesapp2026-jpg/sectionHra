@@ -128,6 +128,8 @@ a{color:var(--coffee-700);}
     <nav class="side">
       <button data-page="dashboard" class="active">Dashboard</button>
       <button data-page="departments">Departments</button>
+      <button data-page="sections">Sections</button>
+      <button data-page="staff">Staff</button>
     </nav>
     <main>
       <!-- Dashboard -->
@@ -156,6 +158,37 @@ a{color:var(--coffee-700);}
           <div class="pager" id="depPager"></div>
         </div>
       </section>
+      <!-- Sections -->
+      <section id="page-sections" hidden>
+        <h2>Sections</h2>
+        <p class="lead">Sections of the selected department. A section must exist before staff can be added to it.</p>
+        <div class="panel">
+          <div class="toolbar">
+            <select id="secDept" title="Department"></select>
+            <input id="secSearch" class="grow" type="search" placeholder="Search by ID or name">
+            <button class="btn btn-primary" id="secAdd">+ Add Section</button>
+          </div>
+          <div class="tablewrap" id="secTable"><div class="loading">Loading…</div></div>
+          <div class="pager" id="secPager"></div>
+        </div>
+      </section>
+
+      <!-- Staff -->
+      <section id="page-staff" hidden>
+        <h2>Staff</h2>
+        <p class="lead">Staff of the selected department. Staff cannot be moved to another department: set the old record Inactive and add a new one there.</p>
+        <div class="panel">
+          <div class="toolbar">
+            <select id="stDept" title="Department"></select>
+            <input id="stSearch" class="grow" type="search" placeholder="Search by ID, name or designation">
+            <select id="stSection"><option value="">All sections</option></select>
+            <select id="stStatus"><option value="">All statuses</option><option>Active</option><option>Inactive</option></select>
+            <button class="btn btn-primary" id="stAdd">+ Add Staff</button>
+          </div>
+          <div class="tablewrap" id="stTable"><div class="loading">Loading…</div></div>
+          <div class="pager" id="stPager"></div>
+        </div>
+      </section>
     </main>
   </div>
 </div>
@@ -165,7 +198,7 @@ a{color:var(--coffee-700);}
 
 <script>
 /* The web app this page talks to. MUST be the same URL as API_URL in index.html. */
-const API_URL = "https://script.google.com/macros/s/AKfycbw_mK87GjxuW0P_rBVftYcdnUo7R84ygDKsecsI3Id1gTuhpPdLrmXM9VE0H1G1r-mu8w/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxJOi5m10nofsPmdl2yodxIrxpGgDiyQufySfuTNVDVORExeT5n-wW9l5-4xfuZHfi1/exec";
 const SESSION_KEY = 'kpi_hr1_session';
 const PAGE_SIZE = 10;
 
@@ -269,7 +302,7 @@ async function enterApp() {
 
 function logout() {
   const tok = SESSION && SESSION.token;
-  SESSION = null; DEPTS = [];
+  SESSION = null; DEPTS = []; MASTER = null; CUR_DEPT = '';
   sessionStorage.removeItem(SESSION_KEY);
   $('app').hidden = true; $('loginScreen').hidden = false;
   $('loginPassword').value = '';
@@ -281,8 +314,12 @@ function showPage(name) {
   document.querySelectorAll('.side button').forEach(b => b.classList.toggle('active', b.dataset.page === name));
   $('page-dashboard').hidden = name !== 'dashboard';
   $('page-departments').hidden = name !== 'departments';
+  $('page-sections').hidden = name !== 'sections';
+  $('page-staff').hidden = name !== 'staff';
   if (name === 'dashboard') loadDashboard();
   if (name === 'departments') loadDepartments();
+  if (name === 'sections') loadSections();
+  if (name === 'staff') loadStaff();
 }
 
 /* ---------------- dashboard ---------------- */
@@ -426,6 +463,158 @@ function setStatusModal(id, status) {
   };
 }
 
+/* ---------------- sections & staff (department scoped, via the HR1 gateway) ---------------- */
+let CUR_DEPT = '';       // department chosen in the selector (shared by Sections and Staff pages)
+let MASTER = null;       // getMasters result of CUR_DEPT
+let secPage = 1, stPage = 1;
+
+function hr1(action, args, deptId) {
+  return callApi('hr1Call', { deptId: deptId || CUR_DEPT, hr1Action: action, args: args || {} });
+}
+function fillDeptSelect(sel) {
+  const act = DEPTS.filter(d => d.status === 'Active');
+  if (!act.length) { sel.innerHTML = '<option value="">No active department</option>'; return; }
+  if (!act.some(d => d.deptId === CUR_DEPT)) CUR_DEPT = act[0].deptId;
+  sel.innerHTML = act.map(d => '<option value="' + esc(d.deptId) + '">' + esc(d.name) + ' (' + esc(d.deptId) + ')</option>').join('');
+  sel.value = CUR_DEPT;
+}
+async function loadMaster() {
+  MASTER = null;
+  if (!CUR_DEPT) throw new Error('No active department.');
+  MASTER = await hr1('getMasters', {});
+  return MASTER;
+}
+function sectionNames() { return ((MASTER && MASTER.sections) || []).map(x => String(x['Section Name'])); }
+function staffRows() { return (MASTER && MASTER.staff) || []; }
+function dayStr(v) {
+  if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return String(v);
+  const d = new Date(v); if (isNaN(d.getTime())) return String(v);
+  const z = n => (n < 10 ? '0' : '') + n;
+  return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+}
+function pagerHtml(count, page, pages, label) {
+  return '<span>' + count + ' ' + label + ' · page ' + page + ' of ' + pages + '</span>' +
+    '<button class="btn btn-ghost btn-sm" data-pg="prev"' + (page <= 1 ? ' disabled' : '') + '>Prev</button>' +
+    '<button class="btn btn-ghost btn-sm" data-pg="next"' + (page >= pages ? ' disabled' : '') + '>Next</button>';
+}
+
+/* ----- Sections ----- */
+async function loadSections() {
+  fillDeptSelect($('secDept'));
+  $('secTable').innerHTML = '<div class="loading">Loading…</div>'; $('secPager').innerHTML = '';
+  try { await loadMaster(); renderSections(); }
+  catch (e) { $('secTable').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function renderSections() {
+  const q = $('secSearch').value.trim().toLowerCase();
+  const all = (MASTER && MASTER.sections) || [];
+  const rows = all.filter(x => !q || (x['Section ID'] + ' ' + x['Section Name']).toLowerCase().indexOf(q) !== -1);
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (secPage > pages) secPage = pages;
+  if (!rows.length) { $('secTable').innerHTML = '<div class="empty">' + (all.length ? 'No sections match.' : 'No sections yet. Use “+ Add Section”.') + '</div>'; $('secPager').innerHTML = ''; return; }
+  const key = n => String(n || '').trim().toLowerCase();
+  const slice = rows.slice((secPage - 1) * PAGE_SIZE, secPage * PAGE_SIZE);
+  $('secTable').innerHTML = '<table><thead><tr><th>ID</th><th>Section</th><th class="num">Active staff</th><th class="num">Total staff</th><th>Actions</th></tr></thead><tbody>' +
+    slice.map(x => {
+      const mine = staffRows().filter(t => key(t['Section']) === key(x['Section Name']));
+      const act = mine.filter(t => String(t['Status'] || 'Active') !== 'Inactive').length;
+      return '<tr><td class="mono">' + esc(x['Section ID']) + '</td><td>' + esc(x['Section Name']) + '</td><td class="num">' + act + '</td><td class="num">' + mine.length +
+        '</td><td><div class="actions"><button class="btn btn-ghost btn-sm" data-act="edit" data-id="' + esc(x['Section ID']) + '">Rename</button></div></td></tr>';
+    }).join('') + '</tbody></table>';
+  $('secPager').innerHTML = pagerHtml(rows.length, secPage, pages, 'section(s)');
+}
+function sectionModal(id) {
+  const x = id ? ((MASTER.sections || []).filter(r => r['Section ID'] === id)[0]) : null;
+  if (id && !x) return;
+  openModal('<h3>' + (x ? 'Rename section ' + esc(id) : 'Add Section') + '</h3>' +
+    '<div class="field"><label for="mName">Section name</label><input id="mName" type="text" maxlength="60" autocomplete="off" value="' + esc(x ? x['Section Name'] : '') + '">' +
+    (x ? '<div class="hint">A section that already has staff or workflows cannot be renamed.</div>' : '') + '</div>' +
+    '<div class="err" id="mErr"></div>' +
+    '<div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mSave">' + (x ? 'Save Changes' : 'Add Section') + '</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mSave').onclick = async function () {
+    const name = $('mName').value.trim();
+    if (!name) { $('mErr').textContent = 'Section name is required.'; return; }
+    if (x && name === x['Section Name']) { closeModal(); return; }
+    const btn = this, label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Saving…'; $('mErr').textContent = '';
+    try {
+      if (x) await hr1('updateSection', { sectionId: id, sectionName: name });
+      else await hr1('addSection', { sectionName: name });
+      closeModal(); toast(x ? 'Section updated' : 'Section added');
+      await loadMaster(); renderSections();
+    } catch (e) { $('mErr').textContent = e.message; btn.disabled = false; btn.textContent = label; }
+  };
+  $('mName').focus();
+}
+
+/* ----- Staff ----- */
+async function loadStaff() {
+  fillDeptSelect($('stDept'));
+  $('stTable').innerHTML = '<div class="loading">Loading…</div>'; $('stPager').innerHTML = '';
+  try { await loadMaster(); fillStaffSectionFilter(); renderStaff(); }
+  catch (e) { $('stTable').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function fillStaffSectionFilter() {
+  const sel = $('stSection'), keep = sel.value;
+  sel.innerHTML = '<option value="">All sections</option>' + sectionNames().map(n => '<option>' + esc(n) + '</option>').join('');
+  sel.value = sectionNames().indexOf(keep) !== -1 ? keep : '';
+}
+function renderStaff() {
+  const q = $('stSearch').value.trim().toLowerCase(), sec = $('stSection').value, st = $('stStatus').value;
+  const all = staffRows();
+  const rows = all.filter(t => (!sec || String(t['Section']) === sec) && (!st || String(t['Status'] || 'Active') === st) &&
+    (!q || (t['Staff ID'] + ' ' + t['Staff Name'] + ' ' + t['Designation']).toLowerCase().indexOf(q) !== -1));
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (stPage > pages) stPage = pages;
+  if (!rows.length) { $('stTable').innerHTML = '<div class="empty">' + (all.length ? 'No staff match.' : 'No staff yet. Add a section first, then use “+ Add Staff”.') + '</div>'; $('stPager').innerHTML = ''; return; }
+  const slice = rows.slice((stPage - 1) * PAGE_SIZE, stPage * PAGE_SIZE);
+  $('stTable').innerHTML = '<table><thead><tr><th>ID</th><th>Name</th><th>Designation</th><th>Section</th><th>Reporting manager</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+    slice.map(t => {
+      const s = String(t['Status'] || 'Active');
+      return '<tr><td class="mono">' + esc(t['Staff ID']) + '</td><td>' + esc(t['Staff Name']) + '</td><td>' + esc(t['Designation']) + '</td><td>' + esc(t['Section']) +
+        '</td><td>' + esc(t['Reporting Manager']) + '</td><td>' + esc(dayStr(t['Date of Joining'])) + '</td><td>' + statusBadge(s) +
+        '</td><td><div class="actions"><button class="btn btn-ghost btn-sm" data-act="edit" data-id="' + esc(t['Staff ID']) + '">Edit</button></div></td></tr>';
+    }).join('') + '</tbody></table>';
+  $('stPager').innerHTML = pagerHtml(rows.length, stPage, pages, 'staff');
+}
+function staffModal(id) {
+  const t = id ? (staffRows().filter(r => r['Staff ID'] === id)[0]) : null;
+  if (id && !t) return;
+  const names = sectionNames();
+  if (!names.length) { toast('Add a section to this department first.', true); return; }
+  const cur = t ? String(t['Section']) : names[0];
+  const opts = names.map(n => '<option' + (n === cur ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
+  const dept = DEPTS.filter(d => d.deptId === CUR_DEPT)[0];
+  openModal('<h3>' + (t ? 'Edit staff ' + esc(id) : 'Add staff') + ' · ' + esc(dept ? dept.name : CUR_DEPT) + '</h3>' +
+    '<div class="field"><label for="mName">Staff name</label><input id="mName" type="text" maxlength="80" autocomplete="off" value="' + esc(t ? t['Staff Name'] : '') + '"></div>' +
+    '<div class="field"><label for="mDesig">Designation</label><input id="mDesig" type="text" maxlength="80" autocomplete="off" value="' + esc(t ? t['Designation'] : '') + '"></div>' +
+    '<div class="field"><label for="mSec">Section</label><select id="mSec">' + opts + '</select></div>' +
+    '<div class="field"><label for="mRm">Reporting manager</label><input id="mRm" type="text" maxlength="80" autocomplete="off" value="' + esc(t ? t['Reporting Manager'] : '') + '"></div>' +
+    '<div class="field"><label for="mDoj">Date of joining</label><input id="mDoj" type="date" value="' + esc(t ? dayStr(t['Date of Joining']) : '') + '"></div>' +
+    '<div class="field"><label for="mStat">Status</label><select id="mStat"><option' + (!t || String(t['Status'] || 'Active') !== 'Inactive' ? ' selected' : '') + '>Active</option><option' + (t && String(t['Status']) === 'Inactive' ? ' selected' : '') + '>Inactive</option></select></div>' +
+    '<div class="err" id="mErr"></div>' +
+    '<div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mSave">' + (t ? 'Save Changes' : 'Add Staff') + '</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mSave').onclick = async function () {
+    const f = { 'Staff Name': $('mName').value.trim(), 'Designation': $('mDesig').value.trim(), 'Section': $('mSec').value,
+      'Reporting Manager': $('mRm').value.trim(), 'Date of Joining': $('mDoj').value, 'Status': $('mStat').value };
+    if (!f['Staff Name']) { $('mErr').textContent = 'Staff name is required.'; return; }
+    if (!f['Section']) { $('mErr').textContent = 'Section is required.'; return; }
+    const btn = this, label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Saving…'; $('mErr').textContent = '';
+    try {
+      if (t) await hr1('updateStaff', { staffId: id, fields: f });
+      else await hr1('addStaff', { staffName: f['Staff Name'], designation: f['Designation'], section: f['Section'],
+        reportingManager: f['Reporting Manager'], doj: f['Date of Joining'], status: f['Status'] });
+      closeModal(); toast(t ? 'Staff updated' : 'Staff added');
+      await loadMaster(); fillStaffSectionFilter(); renderStaff();
+    } catch (e) { $('mErr').textContent = e.message; btn.disabled = false; btn.textContent = label; }
+  };
+  $('mName').focus();
+}
+
 /* ---------------- wiring ---------------- */
 $('loginBtn').onclick = doLogin;
 $('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
@@ -449,6 +638,19 @@ $('depTable').addEventListener('click', function (ev) {
   else if (act === 'deactivate') setStatusModal(id, 'Inactive');
   else if (act === 'activate') setStatusModal(id, 'Active');
 });
+function onDeptChange(sel, loader) { CUR_DEPT = sel.value; secPage = 1; stPage = 1; loader(); }
+$('secDept').onchange = function () { onDeptChange(this, loadSections); };
+$('stDept').onchange = function () { onDeptChange(this, loadStaff); };
+$('secSearch').oninput = () => { secPage = 1; renderSections(); };
+$('secAdd').onclick = () => { if (MASTER) sectionModal(null); };
+$('secTable').addEventListener('click', ev => { const b = ev.target.closest('button[data-act]'); if (b) sectionModal(b.dataset.id); });
+$('secPager').addEventListener('click', ev => { const b = ev.target.closest('button[data-pg]'); if (!b) return; secPage += b.dataset.pg === 'next' ? 1 : -1; renderSections(); });
+$('stSearch').oninput = () => { stPage = 1; renderStaff(); };
+$('stSection').onchange = () => { stPage = 1; renderStaff(); };
+$('stStatus').onchange = () => { stPage = 1; renderStaff(); };
+$('stAdd').onclick = () => { if (MASTER) staffModal(null); };
+$('stTable').addEventListener('click', ev => { const b = ev.target.closest('button[data-act]'); if (b) staffModal(b.dataset.id); });
+$('stPager').addEventListener('click', ev => { const b = ev.target.closest('button[data-pg]'); if (!b) return; stPage += b.dataset.pg === 'next' ? 1 : -1; renderStaff(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 /* restore a saved session after a page reload */
