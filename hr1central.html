@@ -132,6 +132,7 @@ a{color:var(--coffee-700);}
       <button data-page="sections">Sections</button>
       <button data-page="staff">Staff</button>
       <button data-page="users">User Accounts</button>
+      <button data-page="bulk">Bulk Upload</button>
       <button data-page="kpi">KPI Setup</button>
       <button data-page="targets">Monthly Targets</button>
       <button data-page="appr">HR Appraisal</button>
@@ -150,6 +151,34 @@ a{color:var(--coffee-700);}
         <div class="panel">
           <div class="toolbar"><strong class="grow">Department summary</strong><button class="btn btn-ghost btn-sm" id="dashRefresh">Refresh</button></div>
           <div class="tablewrap" id="dashTable"><div class="loading">Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- Bulk Upload -->
+      <section id="page-bulk" hidden>
+        <h2>Bulk Upload</h2>
+        <p class="lead">Upload many Sections, Staff, Activities or Workflows into the <b>selected department</b>. Order matters: Sections → Staff → Activities → Workflows. First click <b>Check File</b> (nothing is saved), fix any errors, then <b>Save</b>. Existing rows are skipped.</p>
+        <div class="panel">
+          <div class="toolbar">
+            <select id="buDept" title="Department"></select>
+            <select id="buKind">
+              <option value="Section">1. Sections</option>
+              <option value="Staff">2. Staff</option>
+              <option value="Activity">3. Activities</option>
+              <option value="Workflow">4. Workflows</option>
+            </select>
+            <button class="btn btn-ghost" id="buTpl">Download template (CSV)</button>
+            <input type="file" id="buFile" accept=".csv,.txt,.tsv">
+          </div>
+          <p id="buHelp" style="font-size:13px;"></p>
+          <textarea id="buText" rows="6" style="width:100%;font-family:monospace;font-size:12px;" placeholder="Or paste rows copied from Excel (first row = column names)"></textarea>
+          <div class="toolbar" style="margin-top:10px;">
+            <button class="btn btn-ghost" id="buCheck">Check File</button>
+            <button class="btn btn-primary" id="buSave" disabled>Save to Master</button>
+          </div>
+          <h3 id="buSummary" style="font-size:14px;margin:10px 0 4px;"></h3>
+          <div id="buWarn" style="color:#8a6d1d;font-size:13px;"></div>
+          <div class="tablewrap" id="buResult"></div>
         </div>
       </section>
 
@@ -505,7 +534,7 @@ function showPage(name) {
   $('page-kpi').hidden = name !== 'kpi';
   $('page-audit').hidden = name !== 'audit';
   $('page-appr').hidden = name !== 'appr';
-  ['targets','reports','backups','roles','settings'].forEach(n => { $('page-' + n).hidden = name !== n; });
+  ['targets','reports','backups','roles','settings','bulk'].forEach(n => { $('page-' + n).hidden = name !== n; });
   if (name === 'dashboard') loadDashboard();
   if (name === 'departments') loadDepartments();
   if (name === 'sections') loadSections();
@@ -519,6 +548,7 @@ function showPage(name) {
   if (name === 'backups') loadBackups();
   if (name === 'roles') loadRoles();
   if (name === 'settings') loadSettings();
+  if (name === 'bulk') buInit();
 }
 
 /* ---------------- dashboard ---------------- */
@@ -1833,6 +1863,83 @@ $('apPending').onclick = apPending;
 $('apExport').onclick = apExport;
 $('apTabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-tab]'); if (b) apSetTab(b.dataset.tab); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+
+/* ---------------- Bulk Upload (HR1, any department) ---------------- */
+const BU_COLUMNS = {
+  Section:  { cols: ['Section Name'], sample: [['Packing'], ['Curing']], help: 'Required: Section Name.' },
+  Staff:    { cols: ['Staff ID', 'Staff Name', 'Designation', 'Section', 'Reporting Manager', 'Date of Joining', 'Status'],
+              sample: [['', 'Ravi Kumar', 'Packer', 'Packing', 'Suresh M', '2024-06-01', 'Active']],
+              help: 'Required: Staff Name, Section (must already exist). Staff ID optional (blank = auto number). Date: YYYY-MM-DD or DD/MM/YYYY. Status: Active/Inactive.' },
+  Activity: { cols: ['Activity Code', 'Activity Name'], sample: [['PKG-HK', 'PKG - Housekeeping']], help: 'Required: Activity Code and Activity Name (both new/unique).' },
+  Workflow: { cols: ['Activity Code', 'Workflow Name', 'KPI Name', 'Unit', 'Weightage %', 'Target', 'Sections', 'Expected Output', 'Status', 'Team Workflow'],
+              sample: [['PKG-HK', 'PKG - Daily Housekeeping', 'Areas cleaned', 'Nos', '20', '30', 'Packing', 'All areas cleaned daily', 'Active', '']],
+              help: 'Required: Activity Code (or Activity Name), Workflow Name, KPI Name, Unit, Weightage %, Sections (comma-separated inside quotes, or All). Target optional.' }
+};
+let BU_OK = false;
+function buInit() {
+  fillDeptSelect($('buDept'));
+  buKindChanged();
+}
+function buKindChanged() {
+  const k = $('buKind').value;
+  $('buHelp').innerHTML = '<b>Columns:</b> ' + BU_COLUMNS[k].cols.map(esc).join(' | ') + '<br>' + esc(BU_COLUMNS[k].help);
+  buReset();
+}
+function buReset() { BU_OK = false; $('buSave').disabled = true; $('buSummary').textContent = ''; $('buWarn').innerHTML = ''; $('buResult').innerHTML = ''; }
+function buParse(text) {
+  text = String(text || '').replace(/^﻿/, '');
+  const first = text.split(/\r?\n/)[0] || '';
+  const d = first.indexOf('\t') !== -1 ? '\t' : ',';
+  const out = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === d) { row.push(cur); cur = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cur); out.push(row); row = []; cur = ''; }
+    else cur += ch;
+  }
+  if (cur !== '' || row.length) { row.push(cur); out.push(row); }
+  const rows = out.filter(r => r.some(c => String(c).trim() !== ''));
+  if (rows.length < 2) return [];
+  const heads = rows[0].map(h => String(h).trim());
+  return rows.slice(1).map(r => { const o = {}; heads.forEach((h, i) => { if (h) o[h] = r[i] == null ? '' : String(r[i]).trim(); }); return o; });
+}
+async function buRun(commit) {
+  const kind = $('buKind').value, dept = $('buDept').value;
+  if (!dept) { toast('Select a department', true); return; }
+  const rows = buParse($('buText').value);
+  if (!rows.length) { toast('No data rows found. First row must be the column names.', true); return; }
+  const dn = (DEPTS.find(d => d.deptId === dept) || {}).name || dept;
+  if (commit && !confirm('Save ' + rows.length + ' ' + kind + ' row(s) to ' + dn + ' (' + dept + ')? Existing rows are skipped.')) return;
+  $('buCheck').disabled = $('buSave').disabled = true;
+  try {
+    const r = await hr1('bulkUploadMasters', { kind: kind, rows: rows, commit: commit }, dept);
+    const sm = r.summary;
+    $('buSummary').textContent = (r.committed ? 'SAVED to ' + dn + ' - ' : 'Check result (' + dn + ') - ') +
+      sm.ok + ' to create, ' + sm.skipped + ' already exist (skipped), ' + sm.errors + ' error(s), of ' + sm.total + ' row(s)';
+    $('buWarn').innerHTML = (r.warnings || []).map(w => esc(w)).join('<br>');
+    const col = { OK: '#2e7d32', SKIP: '#777', ERROR: '#c62828' };
+    $('buResult').innerHTML = '<table><thead><tr><th>Line</th><th>Result</th><th>Details</th></tr></thead><tbody>' +
+      r.results.map(x => '<tr><td>' + esc(x.line) + '</td><td style="color:' + (col[x.status] || '#333') + ';font-weight:600">' + esc(x.status) + '</td><td>' + esc(x.message) + '</td></tr>').join('') + '</tbody></table>';
+    if (r.committed) { toast('Saved to ' + dn + ' ' + kind + ' Master'); $('buText').value = ''; $('buFile').value = ''; BU_OK = false; }
+    else BU_OK = sm.errors === 0 && sm.ok > 0;
+  } catch (e) { toast(e.message, true); BU_OK = false; }
+  finally { $('buCheck').disabled = false; $('buSave').disabled = !BU_OK; }
+}
+$('buKind').onchange = buKindChanged;
+$('buDept').onchange = buReset;
+$('buText').addEventListener('input', () => { BU_OK = false; $('buSave').disabled = true; });
+$('buCheck').onclick = () => buRun(false);
+$('buSave').onclick = () => buRun(true);
+$('buTpl').onclick = () => { const k = $('buKind').value; downloadCsv('template-' + k.toLowerCase() + '.csv', BU_COLUMNS[k].cols, BU_COLUMNS[k].sample); };
+$('buFile').onchange = function () {
+  const f = this.files && this.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { $('buText').value = rd.result; BU_OK = false; $('buSave').disabled = true; };
+  rd.readAsText(f);
+};
 
 /* restore a saved session after a page reload */
 (async function init() {
