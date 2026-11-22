@@ -265,6 +265,8 @@ a{color:var(--coffee-700);}
           <button class="btn btn-ghost btn-sm" data-tab="dash">Department Dashboard</button>
           <button class="btn btn-ghost btn-sm" data-tab="trend">Grade Trend</button>
           <button class="btn btn-ghost btn-sm" data-tab="formula">Formula Verification</button>
+          <button class="btn btn-ghost btn-sm" data-tab="recog">Recognition</button>
+          <button class="btn btn-ghost btn-sm" data-tab="memo">Memos</button>
         </div>
         <div class="panel"><div class="tablewrap" id="apBody"><div class="empty">Choose a section and period, then press Run Appraisal.</div></div></div>
       </section>
@@ -1027,6 +1029,8 @@ async function apRender() {
   const body = $('apBody');
   const t = AP.tab;
   if (t === 'score') { await apScore(); return; }
+  if (t === 'recog') { await apRecog(); return; }
+  if (t === 'memo') { await apMemos(); return; }
   const p = apNeed(t === 'trend' ? false : true); if (!p) return;
   body.innerHTML = '<div class="loading">Loading…</div>';
   try {
@@ -1210,20 +1214,23 @@ function apSave() {
   const p = apNeed(true); if (!p) return;
   apConfirm('Save Snapshot', apSnapSummary(p) + '<br><br>This saves the current appraisal result of this section for this period. An older <em>unlocked</em> snapshot of the same period is replaced. Staff whose attendance is not fully verified are skipped.', 'Save Snapshot', async () => {
     const r = await hr1('saveAppraisalSnapshot', p);
-    toast('Snapshot saved: ' + r.staffCount + ' staff' + ((r.skippedPending || []).length ? ' · skipped ' + r.skippedPending.length + ' (attendance not verified)' : ''));
-    await apStatus(true);
+    closeModal();
+    const sk = (r.skippedPending || []).length;
+    if (!r.staffCount) toast('Nothing saved: all ' + sk + ' staff skipped because attendance is not fully verified.', true);
+    else toast('Snapshot saved: ' + r.staffCount + ' staff' + (sk ? ' · skipped ' + sk + ' (attendance not verified)' : ''));
+    apStatus(true);
   });
 }
 function apLock(override) {
   const p = apNeed(true); if (!p) return;
   const needReason = override ? 'Override reason (mandatory – recorded in audit log)' : null;
   apConfirm('Approve & Lock', apSnapSummary(p) + '<br><br>After locking, this period cannot be re-saved until it is re-opened with a reason.' +
-    (override ? '<br><br><span style="color:var(--bad)">' + esc(override) + '</span>' : ''), override ? 'Lock with override' : 'Approve & Lock', async (reason) => {
+    (override ? '<br><br><span style="color:var(--danger)">' + esc(override) + '</span>' : ''), override ? 'Lock with override' : 'Approve & Lock', async (reason) => {
     const a = Object.assign({}, p); if (reason) a.overrideReason = reason;
     try {
       const r = await hr1('lockAppraisalSnapshot', a);
-      toast('Locked: ' + r.staffCount + ' staff');
-      await apStatus(true);
+      closeModal(); toast('Locked: ' + r.staffCount + ' staff');
+      apStatus(true);
     } catch (e) {
       if (/^LOCK_BLOCKED/.test(e.message)) { closeModal(); setTimeout(() => apLock(e.message.replace(/^LOCK_BLOCKED:\s*/, '')), 0); return; }
       throw e;
@@ -1235,8 +1242,147 @@ function apReopen() {
   if (!p.periodLabel) { toast('Enter the period label.', true); return; }
   apConfirm('Re-open for Revision', apSnapSummary(p) + '<br><br>This removes the Approved lock so the period can be recalculated and saved again. The action is recorded in the audit log.', 'Re-open', async (reason) => {
     await hr1('reopenAppraisalSnapshot', { periodLabel: p.periodLabel, section: p.section, reason: reason });
-    toast('Period re-opened'); await apStatus(true);
+    closeModal(); toast('Period re-opened'); apStatus(true);
   }, 'Reason for re-opening (mandatory)');
+}
+
+/* ---- HR Appraisal: Recognition + Memos (phase 2-B) ---- */
+const REC_TYPES = ['Employee of the Month', 'Appreciation Letter', 'Special Appreciation', 'Outstanding Achievement', 'Management Recognition'];
+const MEMO_TYPES = ['Verbal Warning', 'Written Warning', 'Final Warning', 'Disciplinary Memo'];
+const MEMO_CATS = ['Late Coming', 'Poor Performance', 'Absenteeism', 'Safety Violation', 'Process Violation', 'Misconduct', 'Quality Issue', 'Customer Complaint', 'Others'];
+const MEMO_DECISIONS = ['Reply Accepted / Satisfactory', 'Warning Only / No Penalty', 'Memo Closed / No Action', 'Memo Withdrawn / Cancelled', 'Penalty Confirmed', 'Deduction Adjusted'];
+function apSecStaff(section) {
+  const key = x => String(x || 'Stores').trim().toLowerCase();
+  return staffRows().filter(s => key(s['Section']) === key(section) && String(s['Status'] || 'Active') === 'Active');
+}
+function apStaffOptions(section) {
+  return apSecStaff(section).map(s => '<option value="' + esc(s['Staff ID']) + '">' + esc(s['Staff ID']) + ' · ' + esc(s['Staff Name']) + '</option>').join('');
+}
+function apSecIds(section) { return apSecStaff(section).map(s => s['Staff ID']); }
+function apPeriodNeed() {
+  const p = apParams();
+  if (!p.section) { toast('Select a section first.', true); return null; }
+  if (!p.periodLabel) { toast('Enter the period label.', true); return null; }
+  return p;
+}
+async function apRecog() {
+  const p = apPeriodNeed(); if (!p) return;
+  const body = $('apBody'); body.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const ids = apSecIds(p.section);
+    const rows = (await hr1('getRecognitions', { periodLabel: p.periodLabel })).filter(r => ids.indexOf(r['Staff ID']) !== -1);
+    body.innerHTML = '<div class="toolbar"><button class="btn btn-primary btn-sm" id="rcAdd">+ Add Recognition</button></div>' +
+      (rows.length ? '<table><thead><tr><th>ID</th><th>Staff</th><th>Type</th><th>Marks</th><th>Reason</th><th>Awarded By</th><th></th></tr></thead><tbody>' +
+        rows.map(r => '<tr><td class="mono">' + esc(r['Recognition ID']) + '</td><td>' + esc(r['Staff ID']) + ' · ' + esc(r['Staff Name']) + '</td><td>' + esc(r['Type']) + '</td><td>+' + esc(r['Bonus Marks']) +
+          '</td><td>' + esc(r['Reason']) + '</td><td>' + esc(r['Awarded By']) + '</td><td><button class="btn btn-ghost btn-sm" data-rcdel="' + esc(r['Recognition ID']) + '">Delete</button></td></tr>').join('') + '</tbody></table>'
+        : '<div class="empty">No recognition recorded for this section and period.</div>');
+    $('rcAdd').onclick = () => apRecogModal(p);
+    body.querySelectorAll('[data-rcdel]').forEach(b => b.onclick = () => {
+      const id = b.dataset.rcdel;
+      apConfirm('Delete Recognition', 'Delete recognition <strong>' + esc(id) + '</strong>? The bonus marks will be removed from the appraisal.', 'Delete', async () => {
+        await hr1('deleteRecognition', { recognitionId: id }); toast('Recognition deleted'); apRecog();
+      });
+    });
+  } catch (e) { body.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function apRecogModal(p) {
+  openModal('<h3>Add Recognition</h3>' + '<div style="font-size:13px;margin-bottom:8px">' + apSnapSummary(p) + '</div>' +
+    '<div class="field"><label>Staff</label><select id="rcStaff">' + apStaffOptions(p.section) + '</select></div>' +
+    '<div class="field"><label>Type</label><select id="rcType">' + REC_TYPES.map(t => '<option>' + esc(t) + '</option>').join('') + '</select></div>' +
+    '<div class="field" id="rcMarksF" style="display:none"><label>Bonus marks (2 to 5)</label><input id="rcMarks" type="number" min="2" max="5" step="0.5" value="3"></div>' +
+    '<div class="field"><label>Reason (required)</label><textarea id="rcReason" rows="3" style="width:100%"></textarea></div>' +
+    '<div class="err" id="mErr"></div><div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mOk">Add</button></div>');
+  $('rcType').onchange = () => { $('rcMarksF').style.display = $('rcType').value === 'Special Appreciation' ? '' : 'none'; };
+  $('mCancel').onclick = closeModal;
+  $('mOk').onclick = async function () {
+    const reason = $('rcReason').value.trim();
+    if (!$('rcStaff').value) { $('mErr').textContent = 'Select a staff member.'; return; }
+    if (!reason) { $('mErr').textContent = 'A reason is required.'; return; }
+    this.disabled = true; this.textContent = 'Please wait…'; $('mErr').textContent = '';
+    try {
+      const a = { staffId: $('rcStaff').value, periodLabel: p.periodLabel, type: $('rcType').value, reason: reason };
+      if (a.type === 'Special Appreciation') a.bonusMarks = Number($('rcMarks').value);
+      const r = await hr1('addRecognition', a);
+      closeModal(); toast('Recognition ' + r.recognitionId + ' added (+' + r.bonusMarks + ')'); apRecog();
+    } catch (e) { $('mErr').textContent = e.message; this.disabled = false; this.textContent = 'Add'; }
+  };
+}
+async function apMemos() {
+  const p = apPeriodNeed(); if (!p) return;
+  const body = $('apBody'); body.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const ids = apSecIds(p.section);
+    const rows = (await hr1('getDisciplinaryActions', { periodLabel: p.periodLabel })).filter(r => ids.indexOf(r['Staff ID']) !== -1);
+    body.innerHTML = '<div class="toolbar"><button class="btn btn-primary btn-sm" id="mmAdd">+ Issue Memo</button></div>' +
+      (rows.length ? '<table><thead><tr><th>ID</th><th>Staff</th><th>Type</th><th>Category</th><th>Proposed</th><th>Status</th><th>Decision</th><th>Effective</th><th></th></tr></thead><tbody>' +
+        rows.map(r => '<tr><td class="mono">' + esc(r['Memo ID']) + '</td><td>' + esc(r['Staff ID']) + ' · ' + esc(r['Staff Name']) + '</td><td>' + esc(r['Type']) + '</td><td>' + esc(r['Category']) +
+          '</td><td>-' + esc(r.originalDeduction) + '</td><td>' + esc(r.memoStatus) + '</td><td>' + esc(r.hrDecision) + '</td><td>-' + esc(r.effectiveDeduction) +
+          '</td><td><div class="actions"><button class="btn btn-ghost btn-sm" data-mmview="' + esc(r['Memo ID']) + '">View / Decide</button>' +
+          (r['Status'] === 'Closed' ? '' : '<button class="btn btn-ghost btn-sm" data-mmdel="' + esc(r['Memo ID']) + '">Delete</button>') + '</div></td></tr>').join('') + '</tbody></table>'
+        : '<div class="empty">No memos for this section and period.</div>');
+    $('mmAdd').onclick = () => apMemoModal(p);
+    AP.memos = rows;
+    body.querySelectorAll('[data-mmview]').forEach(b => b.onclick = () => apMemoView(p, b.dataset.mmview));
+    body.querySelectorAll('[data-mmdel]').forEach(b => b.onclick = () => {
+      const id = b.dataset.mmdel;
+      apConfirm('Delete Memo', 'Delete memo <strong>' + esc(id) + '</strong>? Only memos without a final decision can be deleted.', 'Delete', async () => {
+        await hr1('deleteDisciplinaryAction', { memoId: id }); toast('Memo deleted'); apMemos();
+      });
+    });
+  } catch (e) { body.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function apMemoModal(p) {
+  openModal('<h3>Issue Memo</h3><div style="font-size:13px;margin-bottom:8px">' + apSnapSummary(p) + '</div>' +
+    '<div class="field"><label>Staff</label><select id="mmStaff">' + apStaffOptions(p.section) + '</select></div>' +
+    '<div class="field"><label>Action type</label><select id="mmType">' + MEMO_TYPES.map(t => '<option>' + esc(t) + '</option>').join('') + '</select></div>' +
+    '<div class="field"><label>Category</label><select id="mmCat">' + MEMO_CATS.map(t => '<option>' + esc(t) + '</option>').join('') + '</select></div>' +
+    '<div class="field"><label>Reason (required)</label><textarea id="mmReason" rows="2" style="width:100%"></textarea></div>' +
+    '<div class="field"><label>Description (optional)</label><textarea id="mmDesc" rows="2" style="width:100%"></textarea></div>' +
+    '<div class="field"><div class="hint">Issuing a memo does not reduce marks. Marks change only after HR records a Final Decision.</div>' +
+    '<div class="err" id="mErr"></div><div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mOk">Issue Memo</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mOk').onclick = async function () {
+    const reason = $('mmReason').value.trim();
+    if (!$('mmStaff').value) { $('mErr').textContent = 'Select a staff member.'; return; }
+    if (!reason) { $('mErr').textContent = 'A reason is required.'; return; }
+    this.disabled = true; this.textContent = 'Please wait…'; $('mErr').textContent = '';
+    try {
+      const r = await hr1('addDisciplinaryAction', { staffId: $('mmStaff').value, periodLabel: p.periodLabel, type: $('mmType').value, category: $('mmCat').value, reason: reason, description: $('mmDesc').value.trim() });
+      closeModal(); toast('Memo ' + r.memoId + ' issued'); apMemos();
+    } catch (e) { $('mErr').textContent = e.message; this.disabled = false; this.textContent = 'Issue Memo'; }
+  };
+}
+function apMemoView(p, id) {
+  const r = (AP.memos || []).filter(x => x['Memo ID'] === id)[0]; if (!r) return;
+  const row = (k, v) => '<tr><td style="color:var(--coffee-500);padding:3px 10px 3px 0">' + esc(k) + '</td><td>' + esc(v || '–') + '</td></tr>';
+  const closed = r['Status'] === 'Closed' || !!r['Final Decision'];
+  openModal('<h3>Memo ' + esc(id) + '</h3><table style="font-size:13px;margin-bottom:10px">' +
+    row('Staff', r['Staff ID'] + ' · ' + r['Staff Name']) + row('Type / Category', r['Type'] + ' / ' + (r['Category'] || '–')) + row('Reason', r['Reason']) + row('Description', r['Description']) +
+    row('Status', r.memoStatus) + row('Employee reply', r['Employee Reply']) + row('Manager review', r['Manager Review']) + row('HR review', r['HR Review']) +
+    row('Proposed deduction', '-' + r.originalDeduction) + row('Final decision', r.hrDecision) + row('Effective deduction', '-' + r.effectiveDeduction) + '</table>' +
+    (closed ? '<div class="hint">This memo already has a final decision and cannot be changed.</div>' :
+      '<div class="field"><label>HR review note</label><textarea id="mdHr" rows="2" style="width:100%">' + esc(r['HR Review'] || '') + '</textarea></div>' +
+      '<div class="field"><label>Final decision</label><select id="mdDec"><option value="">-- Select --</option>' + MEMO_DECISIONS.map(t => '<option>' + esc(t) + '</option>').join('') + '</select></div>' +
+      '<div class="field" id="mdAdjF" style="display:none"><label>Adjusted deduction marks</label><input id="mdAdj" type="number" min="0" step="0.5"></div>') +
+    '<div class="err" id="mErr"></div><div class="btns"><button class="btn btn-ghost" id="mCancel">Close</button>' +
+    (closed ? '' : '<button class="btn btn-ghost" id="mdSaveRev">Save HR review</button><button class="btn btn-primary" id="mdDecide">Record Final Decision</button>') + '</div>');
+  $('mCancel').onclick = closeModal;
+  if (closed) return;
+  $('mdDec').onchange = () => { $('mdAdjF').style.display = $('mdDec').value === 'Deduction Adjusted' ? '' : 'none'; };
+  $('mdSaveRev').onclick = async function () {
+    this.disabled = true; $('mErr').textContent = '';
+    try { await hr1('reviewMemo', { memoId: id, hrReview: $('mdHr').value.trim() }); closeModal(); toast('HR review saved'); apMemos(); }
+    catch (e) { $('mErr').textContent = e.message; this.disabled = false; }
+  };
+  $('mdDecide').onclick = function () {
+    const dec = $('mdDec').value;
+    if (!dec) { $('mErr').textContent = 'Select the final decision.'; return; }
+    const a = { memoId: id, finalDecision: dec };
+    if (dec === 'Deduction Adjusted') { if ($('mdAdj').value === '') { $('mErr').textContent = 'Enter the adjusted deduction.'; return; } a.adjustedDeductionMarks = Number($('mdAdj').value); }
+    apConfirm('Record Final Decision', 'Memo <strong>' + esc(id) + '</strong> → <strong>' + esc(dec) + '</strong>' + (a.adjustedDeductionMarks !== undefined ? ' (-' + a.adjustedDeductionMarks + ')' : '') + '<br><br>A final decision can be recorded <strong>only once</strong> and cannot be changed afterwards.', 'Record Decision', async () => {
+      await hr1('decideMemo', a); toast('Final decision recorded'); apMemos();
+    });
+  };
 }
 $('apStatus').onclick = () => apStatus(false);
 $('apSave').onclick = apSave;
