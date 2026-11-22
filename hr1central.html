@@ -131,6 +131,7 @@ a{color:var(--coffee-700);}
       <button data-page="sections">Sections</button>
       <button data-page="staff">Staff</button>
       <button data-page="users">User Accounts</button>
+      <button data-page="kpi">KPI Setup</button>
     </nav>
     <main>
       <!-- Dashboard -->
@@ -203,6 +204,31 @@ a{color:var(--coffee-700);}
           </div>
           <div class="tablewrap" id="uaTable"><div class="loading">Loading…</div></div>
           <div class="pager" id="uaPager"></div>
+        </div>
+      </section>
+
+      <!-- KPI Setup -->
+      <section id="page-kpi" hidden>
+        <h2>KPI Setup</h2>
+        <p class="lead">Activities and workflows of the selected department. For every section, the Active workflows that apply to it should add up to 100% weightage.</p>
+        <div class="panel">
+          <div class="toolbar"><select id="kpDept" title="Department"></select><strong class="grow">Weightage check (per section)</strong><button class="btn btn-ghost btn-sm" id="kpRefresh">Refresh</button></div>
+          <div id="kpSummary" class="tiles"></div>
+        </div>
+        <div class="panel">
+          <div class="toolbar"><strong class="grow">Activities</strong><button class="btn btn-primary btn-sm" id="actAdd">+ Add Activity</button></div>
+          <div class="tablewrap" id="actTable"><div class="loading">Loading…</div></div>
+        </div>
+        <div class="panel">
+          <div class="toolbar">
+            <strong>Workflows</strong>
+            <input id="wfSearch" class="grow" type="search" placeholder="Search workflow, KPI or ID">
+            <select id="wfActivity"><option value="">All activities</option></select>
+            <select id="wfStatus"><option value="">All statuses</option><option>Active</option><option>Inactive</option></select>
+            <button class="btn btn-primary" id="wfAdd">+ Add Workflow</button>
+          </div>
+          <div class="tablewrap" id="wfTable"><div class="loading">Loading…</div></div>
+          <div class="pager" id="wfPager"></div>
         </div>
       </section>
     </main>
@@ -318,7 +344,7 @@ async function enterApp() {
 
 function logout() {
   const tok = SESSION && SESSION.token;
-  SESSION = null; DEPTS = []; MASTER = null; CUR_DEPT = ''; UA = [];
+  SESSION = null; DEPTS = []; MASTER = null; CUR_DEPT = ''; UA = []; KS = { wfs: [], val: null };
   sessionStorage.removeItem(SESSION_KEY);
   $('app').hidden = true; $('loginScreen').hidden = false;
   $('loginPassword').value = '';
@@ -333,11 +359,13 @@ function showPage(name) {
   $('page-sections').hidden = name !== 'sections';
   $('page-staff').hidden = name !== 'staff';
   $('page-users').hidden = name !== 'users';
+  $('page-kpi').hidden = name !== 'kpi';
   if (name === 'dashboard') loadDashboard();
   if (name === 'departments') loadDepartments();
   if (name === 'sections') loadSections();
   if (name === 'staff') loadStaff();
   if (name === 'users') loadUsers();
+  if (name === 'kpi') loadKpi();
 }
 
 /* ---------------- dashboard ---------------- */
@@ -728,6 +756,147 @@ function userAction(act, userId) {
     async () => { await hr1('setLoginAccountStatus', { userId: userId, status: 'Active' }); closeModal(); toast('Login activated'); await refresh(); });
 }
 
+/* ----- KPI Setup: activities + workflows ----- */
+let KS = { wfs: [], val: null }, wfPage = 1;
+async function loadKpi() {
+  fillDeptSelect($('kpDept'));
+  $('kpSummary').innerHTML = ''; $('actTable').innerHTML = '<div class="loading">Loading…</div>'; $('wfTable').innerHTML = '<div class="loading">Loading…</div>'; $('wfPager').innerHTML = '';
+  try { await reloadKpi(); }
+  catch (e) { $('actTable').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; $('wfTable').innerHTML = ''; }
+}
+async function reloadKpi() {
+  await loadMaster();
+  const r = await hr1('getWorkflowsFreshWithValidation', {});
+  KS.wfs = r.workflows || []; KS.val = r.validation || { sections: [] };
+  renderKpi();
+}
+function renderKpi() {
+  const secs = (KS.val && KS.val.sections) || [];
+  $('kpSummary').innerHTML = secs.length ? secs.map(x =>
+    '<div class="tile"><div class="n">' + esc(x.total) + '%</div><div class="l">' + esc(x.section) + ' · ' + esc(x.workflowCount) + ' workflows</div>' +
+    '<div style="margin-top:6px">' + (x.valid ? '<span class="badge ok">Total is 100</span>' : '<span class="badge warn">Must total 100</span>') + '</div></div>').join('')
+    : '<div class="empty" style="grid-column:1/-1">No active workflows yet, so there is no weightage to check.</div>';
+  renderActivities(); fillWfActivityFilter(); renderWorkflows();
+}
+function activitiesList() { return (MASTER && MASTER.activities) || []; }
+function renderActivities() {
+  const acts = activitiesList();
+  if (!acts.length) { $('actTable').innerHTML = '<div class="empty">No activities yet. Use “+ Add Activity”.</div>'; return; }
+  $('actTable').innerHTML = '<table><thead><tr><th>ID</th><th>Code</th><th>Activity</th><th class="num">Workflows</th><th>Actions</th></tr></thead><tbody>' +
+    acts.map(a => {
+      const n = KS.wfs.filter(w => w['Activity ID'] === a['Activity ID']).length;
+      return '<tr><td class="mono">' + esc(a['Activity ID']) + '</td><td class="mono">' + esc(a['Activity Code']) + '</td><td>' + esc(a['Activity Name']) + '</td><td class="num">' + n +
+        '</td><td><div class="actions"><button class="btn btn-ghost btn-sm" data-act="rename" data-id="' + esc(a['Activity ID']) + '">Rename</button></div></td></tr>';
+    }).join('') + '</tbody></table>';
+}
+function fillWfActivityFilter() {
+  const sel = $('wfActivity'), keep = sel.value;
+  sel.innerHTML = '<option value="">All activities</option>' + activitiesList().map(a => '<option value="' + esc(a['Activity ID']) + '">' + esc(a['Activity Name']) + '</option>').join('');
+  sel.value = activitiesList().some(a => a['Activity ID'] === keep) ? keep : '';
+}
+function renderWorkflows() {
+  const q = $('wfSearch').value.trim().toLowerCase(), act = $('wfActivity').value, st = $('wfStatus').value;
+  const rows = KS.wfs.filter(w => (!act || w['Activity ID'] === act) && (!st || String(w['Status'] || 'Active') === st) &&
+    (!q || (w['Workflow ID'] + ' ' + w['Workflow Name'] + ' ' + w['KPI Name']).toLowerCase().indexOf(q) !== -1));
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (wfPage > pages) wfPage = pages;
+  if (!rows.length) { $('wfTable').innerHTML = '<div class="empty">' + (KS.wfs.length ? 'No workflows match.' : 'No workflows yet. Add an activity first, then use “+ Add Workflow”.') + '</div>'; $('wfPager').innerHTML = ''; return; }
+  const slice = rows.slice((wfPage - 1) * PAGE_SIZE, wfPage * PAGE_SIZE);
+  $('wfTable').innerHTML = '<table><thead><tr><th>ID</th><th>Activity</th><th>Workflow</th><th>KPI</th><th>Unit</th><th class="num">Target</th><th class="num">Weight %</th><th>Sections</th><th>Team</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+    slice.map(w => '<tr><td class="mono">' + esc(w['Workflow ID']) + '</td><td>' + esc(w['Activity Name']) + '</td><td>' + esc(w['Workflow Name']) + '</td><td>' + esc(w['KPI Name']) + '</td><td>' + esc(w['Unit']) +
+      '</td><td class="num">' + (w['Target'] === '' || w['Target'] == null ? '<span class="mono">Not set</span>' : esc(w['Target'])) + '</td><td class="num">' + esc(w['Weightage %']) +
+      '</td><td>' + esc(w['Sections'] || '(Stores only)') + '</td><td>' + (String(w['Team Workflow'] || '').toLowerCase() === 'yes' ? 'Yes' : '') + '</td><td>' + statusBadge(String(w['Status'] || 'Active')) +
+      '</td><td><div class="actions"><button class="btn btn-ghost btn-sm" data-act="edit" data-id="' + esc(w['Workflow ID']) + '">Edit</button></div></td></tr>').join('') + '</tbody></table>';
+  $('wfPager').innerHTML = pagerHtml(rows.length, wfPage, pages, 'workflow(s)');
+}
+function activityModal(id) {
+  const a = id ? activitiesList().filter(x => x['Activity ID'] === id)[0] : null;
+  if (id && !a) return;
+  openModal('<h3>' + (a ? 'Rename activity ' + esc(id) : 'Add Activity') + '</h3>' +
+    (a ? '' : '<div class="field"><label for="mCode">Activity code</label><input id="mCode" type="text" maxlength="20" autocomplete="off"><div class="hint">Short unique code, e.g. PO-CREATE.</div></div>') +
+    '<div class="field"><label for="mName">Activity name</label><input id="mName" type="text" maxlength="80" autocomplete="off" value="' + esc(a ? a['Activity Name'] : '') + '"></div>' +
+    '<div class="err" id="mErr"></div>' +
+    '<div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mSave">' + (a ? 'Save Changes' : 'Add Activity') + '</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mSave').onclick = async function () {
+    const name = $('mName').value.trim(), code = a ? '' : $('mCode').value.trim();
+    if (!name) { $('mErr').textContent = 'Activity name is required.'; return; }
+    if (!a && !code) { $('mErr').textContent = 'Activity code is required.'; return; }
+    if (a && name === a['Activity Name']) { closeModal(); return; }
+    const btn = this, label = btn.textContent; btn.disabled = true; btn.textContent = 'Saving…'; $('mErr').textContent = '';
+    try {
+      if (a) await hr1('updateActivity', { activityId: id, activityName: name });
+      else await hr1('addActivity', { activityName: name, activityCode: code });
+      closeModal(); toast(a ? 'Activity updated' : 'Activity added'); await reloadKpi();
+    } catch (e) { $('mErr').textContent = e.message; btn.disabled = false; btn.textContent = label; }
+  };
+}
+function sectionChecks(raw) {
+  const names = sectionNames(), all = ((MASTER && MASTER.sections) || []);
+  const toks = String(raw || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+  const isAll = toks.indexOf('all') !== -1;
+  return '<div class="field"><label>Applies to sections</label>' +
+    '<label style="text-transform:none;font-weight:400"><input type="checkbox" id="mSecAll"' + (isAll ? ' checked' : '') + '> All sections</label>' +
+    all.map(x => {
+      const nm = String(x['Section Name']), on = toks.indexOf(nm.toLowerCase()) !== -1 || toks.indexOf(String(x['Section ID']).toLowerCase()) !== -1;
+      return '<label style="text-transform:none;font-weight:400;display:block"><input type="checkbox" class="mSec" value="' + esc(nm) + '"' + (on && !isAll ? ' checked' : '') + '> ' + esc(nm) + '</label>';
+    }).join('') + '</div>';
+}
+function readSectionChecks() {
+  if ($('mSecAll') && $('mSecAll').checked) return 'All';
+  return Array.prototype.slice.call(document.querySelectorAll('.mSec:checked')).map(x => x.value).join(',');
+}
+function workflowModal(id) {
+  const w = id ? KS.wfs.filter(x => x['Workflow ID'] === id)[0] : null;
+  if (id && !w) return;
+  const acts = activitiesList();
+  if (!w && !acts.length) { toast('Add an activity first.', true); return; }
+  if (!sectionNames().length) { toast('Add a section to this department first.', true); return; }
+  const isTeam = w && String(w['Team Workflow'] || '').toLowerCase() === 'yes';
+  const top = w
+    ? '<div class="field"><label>Workflow</label><div>' + esc(w['Workflow ID']) + ' · ' + esc(w['Activity Name']) + ' › ' + esc(w['Workflow Name']) + '</div><div class="hint">KPI: ' + esc(w['KPI Name']) + ' · Unit: ' + esc(w['Unit']) + ' (these cannot be changed)</div></div>'
+    : '<div class="field"><label for="mAct">Activity</label><select id="mAct">' + acts.map(a => '<option value="' + esc(a['Activity ID']) + '">' + esc(a['Activity Name']) + '</option>').join('') + '</select></div>' +
+      '<div class="field"><label for="mWf">Workflow name</label><input id="mWf" type="text" maxlength="100" autocomplete="off"></div>' +
+      '<div class="field"><label for="mKpi">KPI name</label><input id="mKpi" type="text" maxlength="100" autocomplete="off"></div>' +
+      '<div class="field"><label for="mUnit">Unit</label><input id="mUnit" type="text" maxlength="30" autocomplete="off" placeholder="e.g. Nos, Kg, %"></div>';
+  openModal('<h3>' + (w ? 'Edit workflow ' + esc(id) : 'Add Workflow') + '</h3><div style="max-height:62vh;overflow-y:auto;padding-right:4px">' + top +
+    '<div class="field"><label for="mTarget">Target (blank = not set)</label><input id="mTarget" type="number" min="0" step="any" value="' + esc(w && w['Target'] != null ? w['Target'] : '') + '"></div>' +
+    '<div class="field"><label for="mWt">Weightage %</label><input id="mWt" type="number" min="0" max="100" step="any" value="' + esc(w ? w['Weightage %'] : '') + '">' +
+    '<div class="hint">After saving, the Active workflows of each section should total 100.</div></div>' +
+    '<div class="field"><label for="mExp">Expected output</label><input id="mExp" type="text" maxlength="200" autocomplete="off" value="' + esc(w ? w['Expected Output'] : '') + '"></div>' +
+    sectionChecks(w ? w['Sections'] : '') +
+    '<div class="field"><label for="mStat">Status</label><select id="mStat"><option' + (!w || String(w['Status'] || 'Active') !== 'Inactive' ? ' selected' : '') + '>Active</option><option' + (w && String(w['Status']) === 'Inactive' ? ' selected' : '') + '>Inactive</option></select></div>' +
+    '<div class="field"><label style="text-transform:none;font-weight:400"><input type="checkbox" id="mTeam"' + (isTeam ? ' checked' : '') + '> Team (shared) workflow</label></div></div>' +
+    '<div class="err" id="mErr"></div>' +
+    '<div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mSave">' + (w ? 'Save Changes' : 'Add Workflow') + '</button></div>');
+  const all = $('mSecAll');
+  if (all) all.onchange = function () { document.querySelectorAll('.mSec').forEach(c => { c.disabled = all.checked; if (all.checked) c.checked = false; }); };
+  if (all && all.checked) document.querySelectorAll('.mSec').forEach(c => { c.disabled = true; });
+  $('mCancel').onclick = closeModal;
+  $('mSave').onclick = async function () {
+    const wt = $('mWt').value.trim(), tg = $('mTarget').value.trim(), sec = readSectionChecks();
+    if (wt === '' || isNaN(Number(wt)) || Number(wt) < 0 || Number(wt) > 100) { $('mErr').textContent = 'Weightage % must be a number between 0 and 100.'; return; }
+    if (tg !== '' && (isNaN(Number(tg)) || Number(tg) < 0)) { $('mErr').textContent = 'Target must be 0 or more, or blank.'; return; }
+    if (!sec && (!w || String(w['Sections'] || '').trim())) { $('mErr').textContent = 'Select at least one section, or “All sections”.'; return; }
+    let args, action;
+    if (w) {
+      action = 'updateWorkflow';
+      const f = { 'Target': tg, 'Weightage %': Number(wt), 'Expected Output': $('mExp').value.trim(), 'Status': $('mStat').value, 'Team Workflow': $('mTeam').checked ? 'Yes' : 'No' };
+      if (sec) f['Sections'] = sec;
+      args = { workflowId: id, fields: f };
+    } else {
+      action = 'addWorkflow';
+      const wn = $('mWf').value.trim(), kn = $('mKpi').value.trim(), un = $('mUnit').value.trim();
+      if (!wn || !kn || !un) { $('mErr').textContent = 'Workflow name, KPI name and unit are required.'; return; }
+      args = { activityId: $('mAct').value, workflowName: wn, kpiName: kn, unit: un, target: tg, weightage: Number(wt),
+        expectedOutput: $('mExp').value.trim(), status: $('mStat').value, sections: sec, teamWorkflow: $('mTeam').checked };
+    }
+    const btn = this, label = btn.textContent; btn.disabled = true; btn.textContent = 'Saving…'; $('mErr').textContent = '';
+    try { await hr1(action, args); closeModal(); toast(w ? 'Workflow updated' : 'Workflow added'); await reloadKpi(); }
+    catch (e) { $('mErr').textContent = e.message; btn.disabled = false; btn.textContent = label; }
+  };
+}
+
 /* ---------------- wiring ---------------- */
 $('loginBtn').onclick = doLogin;
 $('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
@@ -772,6 +941,16 @@ $('uaTable').addEventListener('click', ev => {
   if (b.dataset.act === 'create') createLoginModal(b.dataset.sid); else userAction(b.dataset.act, b.dataset.uid);
 });
 $('uaPager').addEventListener('click', ev => { const b = ev.target.closest('button[data-pg]'); if (!b) return; uaPage += b.dataset.pg === 'next' ? 1 : -1; renderUsers(); });
+$('kpDept').onchange = function () { CUR_DEPT = this.value; wfPage = 1; loadKpi(); };
+$('kpRefresh').onclick = loadKpi;
+$('actAdd').onclick = () => { if (MASTER) activityModal(null); };
+$('actTable').addEventListener('click', ev => { const b = ev.target.closest('button[data-act]'); if (b) activityModal(b.dataset.id); });
+$('wfAdd').onclick = () => { if (MASTER) workflowModal(null); };
+$('wfSearch').oninput = () => { wfPage = 1; renderWorkflows(); };
+$('wfActivity').onchange = () => { wfPage = 1; renderWorkflows(); };
+$('wfStatus').onchange = () => { wfPage = 1; renderWorkflows(); };
+$('wfTable').addEventListener('click', ev => { const b = ev.target.closest('button[data-act]'); if (b) workflowModal(b.dataset.id); });
+$('wfPager').addEventListener('click', ev => { const b = ev.target.closest('button[data-pg]'); if (!b) return; wfPage += b.dataset.pg === 'next' ? 1 : -1; renderWorkflows(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 /* restore a saved session after a page reload */
