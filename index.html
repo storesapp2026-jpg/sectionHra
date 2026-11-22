@@ -352,6 +352,7 @@ main.content{
           <div id="notifList" style="padding:4px 0;"></div>
         </div>
       </div>
+      <button id="hr1CentralBtn" style="display:none;" onclick="openHr1Central()">HR1 Central ➜</button>
       <button onclick="openChangePasswordModal()" data-i18n="changePassword">Change Password</button>
       <button class="lang-toggle" onclick="toggleLang()">தமிழ் / EN</button>
       <button onclick="logout()" data-i18n="logOut">Log Out</button>
@@ -2362,6 +2363,11 @@ async function doLogin() {
   }
 }
 
+// One login for both pages: an HR1 user carries the same session to the central page.
+function openHr1Central() {
+  try { sessionStorage.setItem('kpi_hr1_session', JSON.stringify(SESSION)); } catch (e) {}
+  location.href = 'hr1central.html';
+}
 let _pendingEnter = false;
 function openChangePasswordModal(forced) {
   // TYPING FIX: if the forced popup is already open, do NOT reset it - background
@@ -2415,7 +2421,7 @@ function logout() {
   SESSION = null;
   _apiCache.clear();
   hrInited = false;
-  sessionStorage.removeItem('kpi_session');
+  sessionStorage.removeItem('kpi_session'); try { sessionStorage.removeItem('kpi_hr1_session'); } catch (e) {}
   sessionStorage.removeItem('kpi_masters');
   sessionStorage.removeItem('kpi_dash');
   // Best-effort - invalidate the token server-side too, so it can't still be
@@ -2592,6 +2598,7 @@ async function enterApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   document.getElementById('whoLabel').textContent = SESSION.staffName + ' · ' + SESSION.role;
+  { const hb = document.getElementById('hr1CentralBtn'); if (hb) hb.style.display = (SESSION.isHR1 && !SESSION.mustChangePassword) ? '' : 'none'; }
   // TYPING FIX: while a password change is compulsory, don't call the server for
   // Masters (it is blocked anyway and kept re-opening the popup). Load the app after the change.
   if (SESSION.mustChangePassword) { _pendingEnter = true; openChangePasswordModal(true); return; }
