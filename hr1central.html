@@ -1161,6 +1161,11 @@ $('auAction').onchange = () => { auPage = 1; renderAudit(); };
 $('auPager').addEventListener('click', ev => { const b = ev.target.closest('button[data-pg]'); if (!b) return; auPage += b.dataset.pg === 'next' ? 1 : -1; renderAudit(); });
 $('apDept').onchange = function () { CUR_DEPT = this.value; AP.score = []; $('apNotes').innerHTML = ''; $('apBody').innerHTML = '<div class="empty">Choose a section and period, then press Run Appraisal.</div>'; loadAppr(); };
 $('apRun').onclick = () => apSetTab('score');
+$('apFrom').onchange = function () {
+  // keep the period label in step with the month of the From date (same label style as the main app: Oct-2026)
+  const m = /^(\d{4})-(\d{2})-/.exec(this.value);
+  if (m) $('apPeriod').value = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m[2]) - 1] + '-' + m[1];
+};
 $('apPending').onclick = apPending;
 $('apExport').onclick = apExport;
 $('apTabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-tab]'); if (b) apSetTab(b.dataset.tab); });
