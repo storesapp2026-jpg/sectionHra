@@ -122,6 +122,7 @@ a{color:var(--coffee-700);}
   <div class="topbar">
     <h1>HR1 Central Administration</h1>
     <span class="who" id="whoLabel"></span>
+    <a class="btn btn-ghost btn-sm" href="./" style="text-decoration:none;">Main App</a>
     <button class="btn btn-ghost btn-sm" id="logoutBtn">Log Out</button>
   </div>
   <div class="layout">
@@ -1837,6 +1838,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 (async function init() {
   let saved = null;
   try { saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch (e) {}
+  if (!(saved && saved.token)) { try { const m = JSON.parse(sessionStorage.getItem('kpi_session') || 'null'); if (m && m.token && m.isHR1 && !m.mustChangePassword) saved = m; } catch (e) {} }
   if (saved && saved.token) {
     SESSION = saved;
     try { await enterApp(); return; } catch (e) { SESSION = null; }
