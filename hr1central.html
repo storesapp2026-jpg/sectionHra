@@ -132,6 +132,7 @@ a{color:var(--coffee-700);}
       <button data-page="staff">Staff</button>
       <button data-page="users">User Accounts</button>
       <button data-page="kpi">KPI Setup</button>
+      <button data-page="audit">Audit Logs</button>
     </nav>
     <main>
       <!-- Dashboard -->
@@ -229,6 +230,23 @@ a{color:var(--coffee-700);}
           </div>
           <div class="tablewrap" id="wfTable"><div class="loading">Loading…</div></div>
           <div class="pager" id="wfPager"></div>
+        </div>
+      </section>
+
+      <!-- Audit Logs -->
+      <section id="page-audit" hidden>
+        <h2>Audit Logs</h2>
+        <p class="lead">Read-only history of changes. “Central” shows HR1 and department administration; a department shows the changes made inside it (staff, sections, logins, workflows…).</p>
+        <div class="panel">
+          <div class="toolbar">
+            <select id="auSource" title="Log"></select>
+            <input id="auSearch" class="grow" type="search" placeholder="Search user, action or details">
+            <select id="auAction"><option value="">All actions</option></select>
+            <select id="auLimit"><option value="100">Latest 100</option><option value="200" selected>Latest 200</option><option value="500">Latest 500</option></select>
+            <button class="btn btn-ghost" id="auRefresh">Refresh</button>
+          </div>
+          <div class="tablewrap" id="auTable"><div class="loading">Loading…</div></div>
+          <div class="pager" id="auPager"></div>
         </div>
       </section>
     </main>
@@ -344,7 +362,7 @@ async function enterApp() {
 
 function logout() {
   const tok = SESSION && SESSION.token;
-  SESSION = null; DEPTS = []; MASTER = null; CUR_DEPT = ''; UA = []; KS = { wfs: [], val: null };
+  SESSION = null; DEPTS = []; MASTER = null; CUR_DEPT = ''; UA = []; KS = { wfs: [], val: null }; AUD = [];
   sessionStorage.removeItem(SESSION_KEY);
   $('app').hidden = true; $('loginScreen').hidden = false;
   $('loginPassword').value = '';
@@ -360,12 +378,14 @@ function showPage(name) {
   $('page-staff').hidden = name !== 'staff';
   $('page-users').hidden = name !== 'users';
   $('page-kpi').hidden = name !== 'kpi';
+  $('page-audit').hidden = name !== 'audit';
   if (name === 'dashboard') loadDashboard();
   if (name === 'departments') loadDepartments();
   if (name === 'sections') loadSections();
   if (name === 'staff') loadStaff();
   if (name === 'users') loadUsers();
   if (name === 'kpi') loadKpi();
+  if (name === 'audit') loadAudit();
 }
 
 /* ---------------- dashboard ---------------- */
@@ -897,6 +917,39 @@ function workflowModal(id) {
   };
 }
 
+/* ----- Audit Logs (read-only) ----- */
+let AUD = [], auPage = 1, auTotal = 0;
+const AU_PAGE = 15;
+function fillAuditSource() {
+  const sel = $('auSource'), keep = sel.value;
+  sel.innerHTML = '<option value="central">Central (HR1 administration)</option>' +
+    DEPTS.map(d => '<option value="' + esc(d.deptId) + '"' + (d.status === 'Active' ? '' : ' disabled') + '>' + esc(d.name) + ' (' + esc(d.deptId) + ')' + (d.status === 'Active' ? '' : ' – inactive') + '</option>').join('');
+  sel.value = Array.prototype.some.call(sel.options, o => o.value === keep && !o.disabled) ? keep : 'central';
+}
+async function loadAudit() {
+  fillAuditSource();
+  $('auTable').innerHTML = '<div class="loading">Loading…</div>'; $('auPager').innerHTML = '';
+  try {
+    const r = await callApi('hr1ListAudit', { source: $('auSource').value, limit: Number($('auLimit').value) });
+    AUD = r.rows || []; auTotal = r.total || 0; auPage = 1;
+    const acts = Array.from(new Set(AUD.map(x => x.action))).sort(), keep = $('auAction').value;
+    $('auAction').innerHTML = '<option value="">All actions</option>' + acts.map(a => '<option>' + esc(a) + '</option>').join('');
+    $('auAction').value = acts.indexOf(keep) !== -1 ? keep : '';
+    renderAudit();
+  } catch (e) { AUD = []; $('auTable').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function renderAudit() {
+  const q = $('auSearch').value.trim().toLowerCase(), act = $('auAction').value;
+  const rows = AUD.filter(x => (!act || x.action === act) && (!q || (x.user + ' ' + x.action + ' ' + x.details + ' ' + x.dept).toLowerCase().indexOf(q) !== -1));
+  const pages = Math.max(1, Math.ceil(rows.length / AU_PAGE));
+  if (auPage > pages) auPage = pages;
+  if (!rows.length) { $('auTable').innerHTML = '<div class="empty">' + (AUD.length ? 'No entries match.' : 'No log entries.') + '</div>'; $('auPager').innerHTML = ''; return; }
+  const slice = rows.slice((auPage - 1) * AU_PAGE, auPage * AU_PAGE);
+  $('auTable').innerHTML = '<table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Department</th><th>Details</th></tr></thead><tbody>' +
+    slice.map(x => '<tr><td style="white-space:nowrap">' + esc(fmtDate(x.time)) + '</td><td class="mono">' + esc(x.user) + '</td><td class="mono">' + esc(x.action) + '</td><td class="mono">' + esc(x.dept) + '</td><td>' + esc(x.details) + '</td></tr>').join('') + '</tbody></table>';
+  $('auPager').innerHTML = pagerHtml(rows.length, auPage, pages, 'entries (of ' + auTotal + ' in the log)');
+}
+
 /* ---------------- wiring ---------------- */
 $('loginBtn').onclick = doLogin;
 $('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
@@ -951,6 +1004,10 @@ $('wfActivity').onchange = () => { wfPage = 1; renderWorkflows(); };
 $('wfStatus').onchange = () => { wfPage = 1; renderWorkflows(); };
 $('wfTable').addEventListener('click', ev => { const b = ev.target.closest('button[data-act]'); if (b) workflowModal(b.dataset.id); });
 $('wfPager').addEventListener('click', ev => { const b = ev.target.closest('button[data-pg]'); if (!b) return; wfPage += b.dataset.pg === 'next' ? 1 : -1; renderWorkflows(); });
+$('auSource').onchange = loadAudit; $('auLimit').onchange = loadAudit; $('auRefresh').onclick = loadAudit;
+$('auSearch').oninput = () => { auPage = 1; renderAudit(); };
+$('auAction').onchange = () => { auPage = 1; renderAudit(); };
+$('auPager').addEventListener('click', ev => { const b = ev.target.closest('button[data-pg]'); if (!b) return; auPage += b.dataset.pg === 'next' ? 1 : -1; renderAudit(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 /* restore a saved session after a page reload */
