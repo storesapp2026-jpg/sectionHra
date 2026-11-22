@@ -132,6 +132,7 @@ a{color:var(--coffee-700);}
       <button data-page="staff">Staff</button>
       <button data-page="users">User Accounts</button>
       <button data-page="kpi">KPI Setup</button>
+      <button data-page="appr">HR Appraisal</button>
       <button data-page="audit">Audit Logs</button>
     </nav>
     <main>
@@ -231,6 +232,35 @@ a{color:var(--coffee-700);}
           <div class="tablewrap" id="wfTable"><div class="loading">Loading…</div></div>
           <div class="pager" id="wfPager"></div>
         </div>
+      </section>
+
+      <!-- HR Appraisal (read-only, phase 1) -->
+      <section id="page-appr" hidden>
+        <h2>HR Appraisal</h2>
+        <p class="lead">Read-only view of the appraisal of one section at a time. Saving snapshots, approve &amp; lock, recognition, memos, manual scores and training are still done in the main app by that department’s HR/Manager.</p>
+        <div class="panel">
+          <div class="toolbar">
+            <select id="apDept" title="Department"></select>
+            <select id="apSection" title="Section"><option value="">-- Select Section --</option></select>
+            <input id="apPeriod" type="text" placeholder="Period label e.g. Nov-2026" style="width:190px">
+            <label style="font-size:12px">From <input id="apFrom" type="date"></label>
+            <label style="font-size:12px">To <input id="apTo" type="date"></label>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-primary" id="apRun">Run Appraisal</button>
+            <button class="btn btn-ghost" id="apPending">Check Review Pending</button>
+            <button class="btn btn-ghost" id="apExport">Export CSV</button>
+          </div>
+          <div id="apNotes"></div>
+        </div>
+        <div class="toolbar" id="apTabs">
+          <button class="btn btn-primary btn-sm" data-tab="score">Scorecard</button>
+          <button class="btn btn-ghost btn-sm" data-tab="summary">HR Summary</button>
+          <button class="btn btn-ghost btn-sm" data-tab="dash">Department Dashboard</button>
+          <button class="btn btn-ghost btn-sm" data-tab="trend">Grade Trend</button>
+          <button class="btn btn-ghost btn-sm" data-tab="formula">Formula Verification</button>
+        </div>
+        <div class="panel"><div class="tablewrap" id="apBody"><div class="empty">Choose a section and period, then press Run Appraisal.</div></div></div>
       </section>
 
       <!-- Audit Logs -->
@@ -362,7 +392,7 @@ async function enterApp() {
 
 function logout() {
   const tok = SESSION && SESSION.token;
-  SESSION = null; DEPTS = []; MASTER = null; CUR_DEPT = ''; UA = []; KS = { wfs: [], val: null }; AUD = [];
+  SESSION = null; DEPTS = []; MASTER = null; CUR_DEPT = ''; UA = []; KS = { wfs: [], val: null }; AUD = []; AP = { tab: 'score', score: [] };
   sessionStorage.removeItem(SESSION_KEY);
   $('app').hidden = true; $('loginScreen').hidden = false;
   $('loginPassword').value = '';
@@ -379,6 +409,7 @@ function showPage(name) {
   $('page-users').hidden = name !== 'users';
   $('page-kpi').hidden = name !== 'kpi';
   $('page-audit').hidden = name !== 'audit';
+  $('page-appr').hidden = name !== 'appr';
   if (name === 'dashboard') loadDashboard();
   if (name === 'departments') loadDepartments();
   if (name === 'sections') loadSections();
@@ -386,6 +417,7 @@ function showPage(name) {
   if (name === 'users') loadUsers();
   if (name === 'kpi') loadKpi();
   if (name === 'audit') loadAudit();
+  if (name === 'appr') loadAppr();
 }
 
 /* ---------------- dashboard ---------------- */
@@ -950,6 +982,125 @@ function renderAudit() {
   $('auPager').innerHTML = pagerHtml(rows.length, auPage, pages, 'entries (of ' + auTotal + ' in the log)');
 }
 
+/* ----- HR Appraisal (read-only) ----- */
+let AP = { tab: 'score', score: [] };
+const AP_COLS = [['Att.(15)', 'attendance'], ['Leave(8)', 'leaveManagement'], ['Perm.(7)', 'permissionHours'], ['Late(8)', 'lateComing'], ['Early(7)', 'earlyLeaving'],
+  ['Shift(10)', 'shiftCompliance'], ['Disc.(10)', 'discipline'], ['Policy(10)', 'policyCompliance'], ['Behav.(10)', 'behaviour'], ['Train(10)', 'training'], ['Remarks(5)', 'hrRemarks']];
+function apNum(v) { return (v === '' || v == null || isNaN(Number(v))) ? '' : String(Math.round(Number(v) * 100) / 100); }
+function apDefaults() {
+  const d = new Date(), z = n => (n < 10 ? '0' : '') + n, mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if (!$('apPeriod').value) $('apPeriod').value = mon[d.getMonth()] + '-' + d.getFullYear();
+  if (!$('apFrom').value) $('apFrom').value = d.getFullYear() + '-' + z(d.getMonth() + 1) + '-01';
+  if (!$('apTo').value) $('apTo').value = d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+}
+async function loadAppr() {
+  fillDeptSelect($('apDept')); apDefaults();
+  $('apNotes').innerHTML = '';
+  try { await loadMaster(); fillApSections(); } catch (e) { $('apBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function fillApSections() {
+  const sel = $('apSection'), keep = sel.value;
+  sel.innerHTML = '<option value="">-- Select Section --</option>' + sectionNames().map(n => '<option>' + esc(n) + '</option>').join('');
+  sel.value = sectionNames().indexOf(keep) !== -1 ? keep : '';
+}
+function apParams() {
+  return { periodLabel: $('apPeriod').value.trim(), from: $('apFrom').value, to: $('apTo').value, section: $('apSection').value };
+}
+function apNeed(needDates) {
+  const p = apParams();
+  if (!p.section) { toast('Select a section first.', true); return null; }
+  if (needDates !== false && (!p.periodLabel || !p.from || !p.to)) { toast('Enter period label, From and To.', true); return null; }
+  return p;
+}
+function apSetTab(t) {
+  AP.tab = t;
+  document.querySelectorAll('#apTabs button').forEach(b => { b.className = 'btn btn-sm ' + (b.dataset.tab === t ? 'btn-primary' : 'btn-ghost'); });
+  apRender();
+}
+async function apRender() {
+  const body = $('apBody');
+  const t = AP.tab;
+  if (t === 'score') { await apScore(); return; }
+  const p = apNeed(t === 'trend' ? false : true); if (!p) return;
+  body.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    if (t === 'summary') {
+      const s = await hr1('getHRManagementSummary', p);
+      const list = (title, arr, withWeak) => '<div class="tile" style="min-width:230px"><div class="l" style="margin:0 0 8px">' + esc(title) + ' (' + arr.length + ')</div>' +
+        (arr.length ? '<ul style="list-style:none;font-size:13px">' + arr.map(r => '<li style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px"><span>' + esc(r.staffName) +
+          (withWeak ? '<br>' + (r.weakAreas || (r.memos || []).map(m => m.type) || []).map(w => '<span class="badge warn">' + esc(w) + '</span>').join(' ') : '') + '</span><strong>' + esc(apNum(r.finalScore)) + '</strong></li>').join('') + '</ul>' : '<div class="mono">None</div>') + '</div>';
+      body.innerHTML = '<div class="tiles">' + list('Top performers', s.topPerformers) + list('Needing improvement', s.needingImprovement) + list('Eligible for promotion', s.eligibleForPromotion) +
+        list('Recommended for increment', s.recommendedForIncrement) + list('Recommended for training', s.recommendedForTraining, true) + list('Disciplinary concerns', s.disciplinaryConcerns, true) + '</div>';
+    } else if (t === 'dash') {
+      const d = await hr1('getHRDashboard', p);
+      body.innerHTML = '<div class="tiles">' + tile(apNum(d.overallAverage), 'Overall average') + tile(d.staffRanking.length, 'Staff ranked') + tile(d.monthlyTrend.length, 'Snapshots saved') + '</div>' +
+        '<h3 style="font-size:14px;margin:6px 0">Staff ranking</h3>' +
+        (d.staffRanking.length ? '<table><thead><tr><th>Rank</th><th>Staff</th><th>Department</th><th class="num">Final score</th><th>Rating</th></tr></thead><tbody>' +
+          d.staffRanking.map(r => '<tr><td>#' + esc(r.rank) + '</td><td>' + esc(r.staffName) + '</td><td>' + esc(r.department) + '</td><td class="num">' + esc(apNum(r.finalScore)) + '</td><td>' + esc(r.rating) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">No data.</div>') +
+        '<h3 style="font-size:14px;margin:14px 0 6px">Bonus and memo impact</h3>' +
+        (d.bonusMemoImpact.length ? '<table><thead><tr><th>Staff</th><th class="num">Bonus</th><th class="num">Memo deduction</th></tr></thead><tbody>' +
+          d.bonusMemoImpact.map(r => '<tr><td>' + esc(r.staffName) + '</td><td class="num">' + esc(r.bonusMarks) + '</td><td class="num">' + esc(r.memoDeduction) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">No data.</div>') +
+        '<h3 style="font-size:14px;margin:14px 0 6px">Monthly trend (saved snapshots)</h3>' +
+        (d.monthlyTrend.length ? '<table><thead><tr><th>Period</th><th class="num">Average score</th></tr></thead><tbody>' +
+          d.monthlyTrend.map(r => '<tr><td>' + esc(r.period) + '</td><td class="num">' + esc(apNum(r.averageScore)) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">No snapshots saved yet.</div>');
+    } else if (t === 'trend') {
+      const d = await hr1('getGradeTrendReport', { section: p.section, months: 3 });
+      const hl = a => (a && a.length) ? a.map(esc).join(', ') : '-';
+      const cell = m => m ? esc(m.score) + ' <b>' + esc(m.grade) + '</b>' : '<span class="mono">-</span>';
+      body.innerHTML = (d.note ? '<p style="font-size:12.5px;color:var(--coffee-500);margin-bottom:8px">' + esc(d.note) + '</p>' : '') +
+        (d.periods.length ? '<p style="font-size:13px;line-height:1.7"><b>Consistent top:</b> ' + hl(d.highlights.consistentTop) + '<br><b>Declining:</b> ' + hl(d.highlights.declining) + '<br><b>Need attention:</b> ' + hl(d.highlights.needAttention) + '</p>' +
+          '<table><thead><tr><th>Staff</th>' + d.periods.map(x => '<th>' + esc(x) + '</th>').join('') + '<th>Average</th><th>Change</th><th>Trend</th></tr></thead><tbody>' +
+          d.rows.map(r => '<tr><td>' + esc(r.staffName) + '</td>' + r.months.map(m => '<td>' + cell(m) + '</td>').join('') + '<td>' + esc(r.average) + ' <b>' + esc(r.averageGrade) + '</b></td><td>' + esc(r.change === '' ? '-' : r.change) + '</td><td>' + esc(r.trend) + '</td></tr>').join('') + '</tbody></table>'
+          : '<div class="empty">No completed-month snapshots for this section yet.</div>');
+    } else if (t === 'formula') {
+      const r = await hr1('getFormulaVerification', p);
+      body.innerHTML = '<p style="margin-bottom:8px"><strong>Overall: ' + esc(r.overall) + '</strong></p><table><thead><tr><th>Check</th><th>Expected</th><th>Actual</th><th>Status</th></tr></thead><tbody>' +
+        r.rows.map(x => '<tr><td>' + esc(x.check) + '</td><td>' + esc(x.expected) + '</td><td>' + esc(x.actual) + '</td><td><span class="badge ' + (x.status === 'PASS' ? 'ok' : x.status === 'WARNING' ? 'warn' : 'off') + '">' + esc(x.status) + '</span></td></tr>').join('') + '</tbody></table>';
+    }
+  } catch (e) { body.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+async function apScore() {
+  const p = apNeed(); if (!p) return;
+  $('apBody').innerHTML = '<div class="loading">Loading…</div>'; $('apNotes').innerHTML = '';
+  try {
+    AP.score = await hr1('getFullAppraisal', p);
+    if (!AP.score.length) { $('apBody').innerHTML = '<div class="empty">No active staff data for this section.</div>'; return; }
+    $('apBody').innerHTML = '<table><thead><tr><th>Employee</th>' + AP_COLS.map(c => '<th class="num">' + esc(c[0]) + '</th>').join('') +
+      '<th class="num">HR(100)</th><th class="num">Bonus</th><th class="num">Memo</th><th class="num">HR final</th><th class="num">KPI %</th><th class="num">Final</th><th>Grade</th><th>Rating</th></tr></thead><tbody>' +
+      AP.score.map(a => a.hrPending
+        ? '<tr><td>' + esc(a.staffName) + '</td><td colspan="' + (AP_COLS.length + 8) + '" style="color:#8a6d1d;background:#fff8e1">Pending: ' + (a.hrRatingPending ? 'HR rating not entered yet (manual scores).' : 'attendance not verified yet.') + '</td></tr>'
+        : '<tr><td>' + esc(a.staffName) + '</td>' + AP_COLS.map(c => '<td class="num">' + esc(apNum((a.criteria || {})[c[1]])) + '</td>').join('') +
+          '<td class="num">' + esc(apNum(a.hrScore)) + '</td><td class="num">' + (a.bonusMarks ? '+' + esc(a.bonusMarks) : '-') + '</td><td class="num">' + (a.memoDeduction ? '-' + esc(a.memoDeduction) : '-') +
+          '</td><td class="num">' + esc(apNum(a.hrFinalScore)) + '</td><td class="num">' + esc(apNum(a.storesKpiPct)) + '</td><td class="num"><strong>' + esc(apNum(a.combinedFinalScore)) + '</strong></td><td>' + esc(a.grade) + '</td><td>' + esc(a.finalRating) + '</td></tr>').join('') + '</tbody></table>';
+    try {
+      const g = await hr1('getAttendanceGapReport', { from: p.from, to: p.to, section: p.section });
+      const bad = (g.staff || []).filter(r => r.unmarkedDays > 0);
+      if (bad.length) $('apNotes').innerHTML = '<div style="margin-top:8px;padding:10px 12px;border:1px solid #e0a800;background:#fff8e1;border-radius:8px;font-size:13px"><strong>Attendance not marked on some working days (advisory):</strong><ul style="margin:6px 0 0 18px">' +
+        bad.map(r => '<li>' + esc(r.staffName) + ': ' + esc(r.unmarkedDays) + ' day(s)</li>').join('') + '</ul></div>';
+    } catch (e) { /* advisory only */ }
+  } catch (e) { $('apBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+async function apPending() {
+  const p = apNeed(false); if (!p) return;
+  if (!p.periodLabel) { toast('Enter the period label.', true); return; }
+  try {
+    const list = await hr1('getHRReviewPendingList', { periodLabel: p.periodLabel, section: p.section });
+    $('apNotes').innerHTML = list.length
+      ? '<div style="margin-top:8px;padding:10px 12px;border-left:3px solid var(--warn);background:#fff8e1;border-radius:8px;font-size:13px"><strong>Manual HR scores not entered yet (' + list.length + '):</strong><br>' + list.map(s => '<span class="badge warn">' + esc(s.staffId) + ' · ' + esc(s.staffName) + '</span>').join(' ') + '</div>'
+      : '<div style="margin-top:8px;font-size:13px;color:var(--ok)">All active staff of this section have manual HR scores for this period.</div>';
+  } catch (e) { toast(e.message, true); }
+}
+function apExport() {
+  if (!AP.score.length) { toast('Run the appraisal first.', true); return; }
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const head = ['Employee', 'Designation'].concat(AP_COLS.map(c => c[0]), ['HR(100)', 'Bonus', 'Memo', 'HR Final', 'KPI %', 'Final Score', 'Grade', 'Rating']);
+  const rows = AP.score.map(a => [a.staffName, a.designation].concat(AP_COLS.map(c => (a.criteria || {})[c[1]]),
+    [a.hrPending ? 'Pending' : a.hrScore, a.bonusMarks, a.memoDeduction, a.hrPending ? 'Pending' : a.hrFinalScore, a.storesKpiPct, a.hrPending ? 'Pending' : a.combinedFinalScore, a.grade, a.hrPending ? 'Pending' : a.finalRating]));
+  const csv = '﻿' + [head].concat(rows).map(r => r.map(q).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = 'HR_Appraisal_' + $('apSection').value + '_' + $('apPeriod').value + '.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
 /* ---------------- wiring ---------------- */
 $('loginBtn').onclick = doLogin;
 $('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
@@ -1008,6 +1159,11 @@ $('auSource').onchange = loadAudit; $('auLimit').onchange = loadAudit; $('auRefr
 $('auSearch').oninput = () => { auPage = 1; renderAudit(); };
 $('auAction').onchange = () => { auPage = 1; renderAudit(); };
 $('auPager').addEventListener('click', ev => { const b = ev.target.closest('button[data-pg]'); if (!b) return; auPage += b.dataset.pg === 'next' ? 1 : -1; renderAudit(); });
+$('apDept').onchange = function () { CUR_DEPT = this.value; AP.score = []; $('apNotes').innerHTML = ''; $('apBody').innerHTML = '<div class="empty">Choose a section and period, then press Run Appraisal.</div>'; loadAppr(); };
+$('apRun').onclick = () => apSetTab('score');
+$('apPending').onclick = apPending;
+$('apExport').onclick = apExport;
+$('apTabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-tab]'); if (b) apSetTab(b.dataset.tab); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 /* restore a saved session after a page reload */
