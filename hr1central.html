@@ -250,7 +250,13 @@ a{color:var(--coffee-700);}
             <button class="btn btn-primary" id="apRun">Run Appraisal</button>
             <button class="btn btn-ghost" id="apPending">Check Review Pending</button>
             <button class="btn btn-ghost" id="apExport">Export CSV</button>
+            <span style="flex:1"></span>
+            <button class="btn btn-ghost" id="apStatus">Snapshot Status</button>
+            <button class="btn btn-primary" id="apSave">Save Snapshot</button>
+            <button class="btn btn-primary" id="apLock">Approve &amp; Lock</button>
+            <button class="btn btn-ghost" id="apReopen">Re-open</button>
           </div>
+          <div id="apSnap" style="margin-top:8px;font-size:13px"></div>
           <div id="apNotes"></div>
         </div>
         <div class="toolbar" id="apTabs">
@@ -1166,6 +1172,76 @@ $('apFrom').onchange = function () {
   const m = /^(\d{4})-(\d{2})-/.exec(this.value);
   if (m) $('apPeriod').value = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m[2]) - 1] + '-' + m[1];
 };
+
+/* ---- HR Appraisal: snapshot actions (phase 2-A) ---- */
+function apSnapBadge(s) {
+  const cls = s.status === 'Approved' ? 'ok' : (s.status === 'None' ? '' : 'warn');
+  return '<span class="badge ' + cls + '">' + esc(s.status === 'None' ? 'No snapshot saved' : s.status) + '</span> ' +
+    esc(s.section) + ' · ' + esc(s.periodLabel) + (s.staffCount ? ' · ' + s.staffCount + ' staff' : '') +
+    (s.status === 'Approved' && s.lockedBy ? ' · locked by ' + esc(s.lockedBy) : '');
+}
+async function apStatus(quiet) {
+  const p = apNeed(false); if (!p) return null;
+  if (!p.periodLabel) { toast('Enter the period label.', true); return null; }
+  try {
+    const s = await hr1('getSnapshotStatus', { periodLabel: p.periodLabel, section: p.section });
+    $('apSnap').innerHTML = apSnapBadge(s);
+    return s;
+  } catch (e) { if (!quiet) toast(e.message, true); return null; }
+}
+function apConfirm(title, bodyHtml, okLabel, run, needReason) {
+  openModal('<h3>' + esc(title) + '</h3><div style="font-size:14px;margin-bottom:10px">' + bodyHtml + '</div>' +
+    (needReason ? '<div class="field"><label for="apReason">' + esc(needReason) + '</label><textarea id="apReason" rows="3" style="width:100%"></textarea></div>' : '') +
+    '<div class="err" id="mErr"></div>' +
+    '<div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mOk">' + esc(okLabel) + '</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mOk').onclick = async function () {
+    const reason = needReason ? $('apReason').value.trim() : '';
+    if (needReason && !reason) { $('mErr').textContent = 'A reason is required.'; return; }
+    this.disabled = true; this.textContent = 'Please wait…'; $('mErr').textContent = '';
+    try { await run(reason); closeModal(); }
+    catch (e) { $('mErr').textContent = e.message; this.disabled = false; this.textContent = okLabel; }
+  };
+}
+function apSnapSummary(p) {
+  return '<strong>' + esc($('apDept').selectedOptions[0].text) + '</strong> · Section <strong>' + esc(p.section) + '</strong> · Period <strong>' + esc(p.periodLabel) + '</strong>';
+}
+function apSave() {
+  const p = apNeed(true); if (!p) return;
+  apConfirm('Save Snapshot', apSnapSummary(p) + '<br><br>This saves the current appraisal result of this section for this period. An older <em>unlocked</em> snapshot of the same period is replaced. Staff whose attendance is not fully verified are skipped.', 'Save Snapshot', async () => {
+    const r = await hr1('saveAppraisalSnapshot', p);
+    toast('Snapshot saved: ' + r.staffCount + ' staff' + ((r.skippedPending || []).length ? ' · skipped ' + r.skippedPending.length + ' (attendance not verified)' : ''));
+    await apStatus(true);
+  });
+}
+function apLock(override) {
+  const p = apNeed(true); if (!p) return;
+  const needReason = override ? 'Override reason (mandatory – recorded in audit log)' : null;
+  apConfirm('Approve & Lock', apSnapSummary(p) + '<br><br>After locking, this period cannot be re-saved until it is re-opened with a reason.' +
+    (override ? '<br><br><span style="color:var(--bad)">' + esc(override) + '</span>' : ''), override ? 'Lock with override' : 'Approve & Lock', async (reason) => {
+    const a = Object.assign({}, p); if (reason) a.overrideReason = reason;
+    try {
+      const r = await hr1('lockAppraisalSnapshot', a);
+      toast('Locked: ' + r.staffCount + ' staff');
+      await apStatus(true);
+    } catch (e) {
+      if (/^LOCK_BLOCKED/.test(e.message)) { closeModal(); setTimeout(() => apLock(e.message.replace(/^LOCK_BLOCKED:\s*/, '')), 0); return; }
+      throw e;
+    }
+  }, needReason);
+}
+function apReopen() {
+  const p = apNeed(false); if (!p) return;
+  if (!p.periodLabel) { toast('Enter the period label.', true); return; }
+  apConfirm('Re-open for Revision', apSnapSummary(p) + '<br><br>This removes the Approved lock so the period can be recalculated and saved again. The action is recorded in the audit log.', 'Re-open', async (reason) => {
+    await hr1('reopenAppraisalSnapshot', { periodLabel: p.periodLabel, section: p.section, reason: reason });
+    toast('Period re-opened'); await apStatus(true);
+  }, 'Reason for re-opening (mandatory)');
+}
+$('apStatus').onclick = () => apStatus(false);
+$('apSave').onclick = apSave;
+$('apLock').onclick = () => apLock('');
+$('apReopen').onclick = apReopen;
 $('apPending').onclick = apPending;
 $('apExport').onclick = apExport;
 $('apTabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-tab]'); if (b) apSetTab(b.dataset.tab); });
