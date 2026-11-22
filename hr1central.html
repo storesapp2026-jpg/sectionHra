@@ -132,7 +132,12 @@ a{color:var(--coffee-700);}
       <button data-page="staff">Staff</button>
       <button data-page="users">User Accounts</button>
       <button data-page="kpi">KPI Setup</button>
+      <button data-page="targets">Monthly Targets</button>
       <button data-page="appr">HR Appraisal</button>
+      <button data-page="reports">Reports</button>
+      <button data-page="backups">Backups</button>
+      <button data-page="roles">Role &amp; Permission</button>
+      <button data-page="settings">Settings</button>
       <button data-page="audit">Audit Logs</button>
     </nav>
     <main>
@@ -272,6 +277,84 @@ a{color:var(--coffee-700);}
           <button class="btn btn-ghost btn-sm" data-tab="swork">Special Work</button>
         </div>
         <div class="panel"><div class="tablewrap" id="apBody"><div class="empty">Choose a section and period, then press Run Appraisal.</div></div></div>
+      </section>
+
+
+      <!-- Monthly Targets -->
+      <section id="page-targets" hidden>
+        <h2>Monthly Targets</h2>
+        <p class="lead">Target, approved quantity and progress for each workflow of one section and month. A target you set here replaces the workflow's default target for that month only.</p>
+        <div class="panel">
+          <div class="toolbar">
+            <select id="mtDept" title="Department"></select>
+            <select id="mtSection" title="Section"><option value="">-- Select Section --</option></select>
+            <input id="mtMonth" type="text" placeholder="Month e.g. Nov-2026" style="width:150px">
+            <button class="btn btn-ghost" id="mtRefresh">Show</button>
+          </div>
+          <div id="mtNote"></div>
+          <div class="tablewrap" id="mtTable"><div class="empty">Select a section and month.</div></div>
+        </div>
+      </section>
+
+      <!-- Reports -->
+      <section id="page-reports" hidden>
+        <h2>Reports</h2>
+        <p class="lead">Department-wise reports. Every report can be downloaded as CSV. Nothing here changes any data.</p>
+        <div class="panel">
+          <div class="toolbar">
+            <select id="rpType">
+              <option value="staff">Staff directory (all departments)</option>
+              <option value="logins">Login accounts (all departments)</option>
+              <option value="appr">Appraisal summary (all sections of a department)</option>
+            </select>
+            <select id="rpDept" title="Department" style="display:none"></select>
+            <input id="rpPeriod" type="text" placeholder="Period label e.g. Oct-2026" style="width:170px;display:none">
+            <label style="font-size:12px;display:none" id="rpFromL">From <input id="rpFrom" type="date"></label>
+            <label style="font-size:12px;display:none" id="rpToL">To <input id="rpTo" type="date"></label>
+            <button class="btn btn-primary" id="rpRun">Run report</button>
+            <button class="btn btn-ghost" id="rpCsv">Export CSV</button>
+          </div>
+          <div class="tablewrap" id="rpTable"><div class="empty">Choose a report and press Run.</div></div>
+        </div>
+      </section>
+
+      <!-- Backups -->
+      <section id="page-backups" hidden>
+        <h2>Backups</h2>
+        <p class="lead">Copies of each department database and the HR1 Central database, saved in one Drive folder. The newest 30 copies of each database are kept; older ones go to Drive Trash.</p>
+        <div class="tiles" id="bkTiles"></div>
+        <div class="panel">
+          <div class="toolbar">
+            <button class="btn btn-primary" id="bkAll">Back up everything now</button>
+            <button class="btn btn-ghost" id="bkOn">Turn on daily backup</button>
+            <button class="btn btn-ghost" id="bkOff">Turn off daily backup</button>
+            <button class="btn btn-ghost" id="bkRefresh">Refresh list</button>
+          </div>
+          <div class="tablewrap" id="bkTable"><div class="loading">Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- Role & Permission -->
+      <section id="page-roles" hidden>
+        <h2>Role &amp; Permission</h2>
+        <p class="lead">View only. What each role can do, and who currently holds which role in each department. Roles are changed in User Accounts.</p>
+        <div class="panel" id="rlMatrix"></div>
+        <div class="panel">
+          <div class="toolbar">
+            <select id="rlDept" title="Department"><option value="">All departments</option></select>
+            <select id="rlRole" title="Role"><option value="">All roles</option><option>HR1</option><option>HR</option><option>Manager</option><option>Staff</option></select>
+            <input id="rlSearch" class="grow" type="search" placeholder="Search user ID or section">
+          </div>
+          <div class="tablewrap" id="rlTable"><div class="loading">Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section id="page-settings" hidden>
+        <h2>Settings</h2>
+        <p class="lead">View only. System information and the central administrators.</p>
+        <div class="panel" id="stInfo"><div class="loading">Loading…</div></div>
+        <div class="panel"><h3 style="margin-bottom:8px">HR1 administrators</h3><div class="tablewrap" id="stAdmins"></div></div>
       </section>
 
       <!-- Audit Logs -->
@@ -421,6 +504,7 @@ function showPage(name) {
   $('page-kpi').hidden = name !== 'kpi';
   $('page-audit').hidden = name !== 'audit';
   $('page-appr').hidden = name !== 'appr';
+  ['targets','reports','backups','roles','settings'].forEach(n => { $('page-' + n).hidden = name !== n; });
   if (name === 'dashboard') loadDashboard();
   if (name === 'departments') loadDepartments();
   if (name === 'sections') loadSections();
@@ -429,6 +513,11 @@ function showPage(name) {
   if (name === 'kpi') loadKpi();
   if (name === 'audit') loadAudit();
   if (name === 'appr') loadAppr();
+  if (name === 'targets') loadTargets();
+  if (name === 'reports') loadReports();
+  if (name === 'backups') loadBackups();
+  if (name === 'roles') loadRoles();
+  if (name === 'settings') loadSettings();
 }
 
 /* ---------------- dashboard ---------------- */
@@ -1548,6 +1637,193 @@ function apSworkDecide(id) {
   };
   $('swApp').onclick = () => go('Approve'); $('swRej').onclick = () => go('Reject');
 }
+
+/* ---------------- phase 3: Monthly Targets, Reports, Backups, Roles, Settings ---------------- */
+function downloadCsv(name, head, rows) {
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const csv = '﻿' + [head].concat(rows).map(r => r.map(q).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function monthNow() { const d = new Date(); return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()] + '-' + d.getFullYear(); }
+function wfInSection(w, section) {
+  const t = String(w['Sections'] == null ? '' : w['Sections']).trim();
+  const k = x => String(x).trim().toLowerCase();
+  if (!t) return k(section) === 'stores';
+  if (k(t) === 'all') return true;
+  return t.split(',').some(n => k(n) === k(section));
+}
+
+/* ----- Monthly Targets ----- */
+let MT = { rows: [], wfs: [] };
+async function loadTargets() {
+  fillDeptSelect($('mtDept'));
+  if (!$('mtMonth').value) $('mtMonth').value = monthNow();
+  $('mtTable').innerHTML = '<div class="empty">Select a section and month.</div>'; $('mtNote').innerHTML = '';
+  try { await loadMaster(); const sel = $('mtSection'), keep = sel.value;
+    sel.innerHTML = '<option value="">-- Select Section --</option>' + sectionNames().map(n => '<option>' + esc(n) + '</option>').join('');
+    sel.value = sectionNames().indexOf(keep) !== -1 ? keep : '';
+  } catch (e) { $('mtTable').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+async function mtShow() {
+  const section = $('mtSection').value, month = $('mtMonth').value.trim();
+  if (!section || !month) { toast('Select a section and enter the month.', true); return; }
+  $('mtTable').innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const [st, wf] = await Promise.all([hr1('getTargetStatus', { month: month }), hr1('getWorkflowsFresh', {})]);
+    const wmap = {}; (wf || []).forEach(w => { wmap[w['Workflow ID']] = w; });
+    MT.rows = (st || []).filter(r => wmap[r.workflowId] && wfInSection(wmap[r.workflowId], section));
+    $('mtNote').innerHTML = $('mtDept').value === 'DEP001' ? '<div style="margin:6px 0;padding:8px 12px;border-left:3px solid var(--warn);background:#fff8e1;border-radius:8px;font-size:13px">Stores targets affect the Stores KPI % of this month. Change them only if the Stores Manager has approved.</div>' : '';
+    if (!MT.rows.length) { $('mtTable').innerHTML = '<div class="empty">No workflows for this section.</div>'; return; }
+    $('mtTable').innerHTML = '<table><thead><tr><th>Activity</th><th>Workflow</th><th>Unit</th><th class="num">Target</th><th>Source</th><th class="num">Approved</th><th class="num">Remaining</th><th class="num">Progress %</th><th></th></tr></thead><tbody>' +
+      MT.rows.map(r => '<tr><td>' + esc(r.activityName) + '</td><td>' + esc(r.workflowName) + '</td><td>' + esc(r.unit) + '</td><td class="num">' + esc(r.monthlyTarget) + '</td><td>' +
+        (r.targetId ? '<span class="badge ok">Set for ' + esc(month) + '</span>' : '<span class="badge">Default</span>') + '</td><td class="num">' + esc(r.approvedQty) + '</td><td class="num">' + esc(r.remaining) + '</td><td class="num">' + esc(r.progressPct) +
+        '</td><td><div class="actions"><button class="btn btn-ghost btn-sm" data-mts="' + esc(r.workflowId) + '">Set target</button>' +
+        (r.targetId ? '<button class="btn btn-ghost btn-sm" data-mtd="' + esc(r.targetId) + '">Remove</button>' : '') + '</div></td></tr>').join('') + '</tbody></table>';
+    $('mtTable').querySelectorAll('[data-mts]').forEach(b => b.onclick = () => mtSet(b.dataset.mts, month));
+    $('mtTable').querySelectorAll('[data-mtd]').forEach(b => b.onclick = () => {
+      const id = b.dataset.mtd;
+      apConfirm('Remove monthly target', 'Remove target <strong>' + esc(id) + '</strong> for ' + esc(month) + '? The workflow goes back to its default target.', 'Remove', async () => { await hr1('deleteMonthlyTarget', { targetId: id }); toast('Target removed'); mtShow(); });
+    });
+  } catch (e) { $('mtTable').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function mtSet(wfId, month) {
+  const r = MT.rows.filter(x => x.workflowId === wfId)[0]; if (!r) return;
+  openModal('<h3>Set target · ' + esc(month) + '</h3><div style="font-size:13px;margin-bottom:8px">' + esc(r.activityName) + ' → <strong>' + esc(r.workflowName) + '</strong> (' + esc(r.unit) + ')<br>Current target: ' + esc(r.monthlyTarget) + '</div>' +
+    '<div class="field"><label for="mtVal">New monthly target</label><input id="mtVal" type="number" min="0" step="any" value="' + esc(r.monthlyTarget) + '"></div>' +
+    '<div class="err" id="mErr"></div><div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mOk">Save</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mOk').onclick = function () {
+    const v = $('mtVal').value;
+    if (v === '' || Number(v) < 0) { $('mErr').textContent = 'Enter a valid target (0 or more).'; return; }
+    closeModal();
+    apConfirm('Set monthly target', esc(r.workflowName) + ' · ' + esc(month) + '<br>' + esc(r.monthlyTarget) + ' → <strong>' + esc(v) + '</strong>', 'Save target', async () => {
+      await hr1('addMonthlyTarget', { month: month, activityId: r.activityId, workflowId: r.workflowId, target: Number(v) }); toast('Target saved'); mtShow();
+    });
+  };
+}
+
+/* ----- Reports ----- */
+let RP = { head: [], rows: [], name: 'report.csv' };
+function rpType() {
+  const t = $('rpType').value, ap = t === 'appr';
+  ['rpDept', 'rpPeriod'].forEach(i => { $(i).style.display = ap ? '' : 'none'; });
+  ['rpFromL', 'rpToL'].forEach(i => { $(i).style.display = ap ? '' : 'none'; });
+}
+function loadReports() { fillDeptSelect($('rpDept')); rpType(); if (!$('rpPeriod').value) { const d = new Date(); d.setMonth(d.getMonth() - 1); $('rpPeriod').value = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()] + '-' + d.getFullYear(); } }
+function rpShow(head, rows, name) {
+  RP = { head: head, rows: rows, name: name };
+  $('rpTable').innerHTML = rows.length ? '<table><thead><tr>' + head.map(x => '<th>' + esc(x) + '</th>').join('') + '</tr></thead><tbody>' +
+    rows.map(r => '<tr>' + r.map(c => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table><div class="hint" style="margin-top:8px">' + rows.length + ' row(s)</div>' : '<div class="empty">No data.</div>';
+}
+async function rpRun() {
+  const t = $('rpType').value;
+  $('rpTable').innerHTML = '<div class="loading">Running…</div>'; $('rpRun').disabled = true;
+  try {
+    const act = DEPTS.filter(d => d.status === 'Active');
+    if (t === 'staff') {
+      const rows = [];
+      for (const d of act) { const m = await hr1('getMasters', {}, d.deptId);
+        (m.staff || []).forEach(s => rows.push([d.name, s['Staff ID'], s['Staff Name'], s['Designation'], s['Section'] || 'Stores', s['Status']])); }
+      rpShow(['Department', 'Staff ID', 'Name', 'Designation', 'Section', 'Status'], rows, 'Staff_Directory.csv');
+    } else if (t === 'logins') {
+      const rows = [];
+      for (const d of act) { const u = await hr1('getLoginAccounts', {}, d.deptId);
+        (u || []).forEach(r => rows.push([d.name, r.staffId, r.staffName, r.section, r.userId || '(no login)', r.role, r.userId ? (r.locked ? 'Locked' : r.status) : '', r.mustChangePassword ? 'Default password' : ''])); }
+      rpShow(['Department', 'Staff ID', 'Name', 'Section', 'User ID', 'Role', 'Login', 'Note'], rows, 'Login_Accounts.csv');
+    } else {
+      const dep = $('rpDept').value, per = $('rpPeriod').value.trim(), from = $('rpFrom').value, to = $('rpTo').value;
+      if (!dep || !per || !from || !to) throw new Error('Select department, period label, From and To.');
+      const m = await hr1('getMasters', {}, dep), rows = [];
+      for (const s of (m.sections || [])) {
+        const name = String(s['Section Name']);
+        const list = await hr1('getFullAppraisal', { periodLabel: per, from: from, to: to, section: name }, dep);
+        (list || []).forEach(a => rows.push([name, a.staffId, a.staffName, a.hrPending ? 'Pending' : a.hrScore, a.hrPending ? 'Pending' : a.hrFinalScore, a.storesKpiPct, a.hrPending ? 'Pending' : a.combinedFinalScore, a.grade || '', a.finalRating || a.hrRating || '']));
+      }
+      const dn = (DEPTS.filter(d => d.deptId === dep)[0] || {}).name || dep;
+      rpShow(['Section', 'Staff ID', 'Name', 'HR (100)', 'HR Final', 'KPI %', 'Final', 'Grade', 'Rating'], rows, 'Appraisal_' + dn + '_' + per + '.csv');
+    }
+  } catch (e) { $('rpTable').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+  $('rpRun').disabled = false;
+}
+
+/* ----- Backups ----- */
+async function loadBackups() {
+  $('bkTable').innerHTML = '<div class="loading">Loading…</div>'; $('bkTiles').innerHTML = '';
+  try {
+    const [info, list] = await Promise.all([callApi('hr1Central', { op: 'systemInfo' }), callApi('hr1Central', { op: 'listBackups' })]);
+    const last = {}; list.forEach(b => { if (!last[b.deptId]) last[b.deptId] = b; });
+    $('bkTiles').innerHTML = '<div class="tile"><div class="n">' + (info.backupTrigger ? 'ON' : 'OFF') + '</div><div class="l">Daily backup (~2:30 AM)</div></div>' +
+      '<div class="tile"><div class="n">' + list.length + '</div><div class="l">Backups listed</div></div>' +
+      '<div class="tile"><div class="n">' + esc(info.keepPerDept) + '</div><div class="l">Kept per database</div></div>' +
+      (info.backupFolderUrl ? '<div class="tile"><div class="n" style="font-size:15px"><a href="' + esc(info.backupFolderUrl) + '" target="_blank" rel="noopener">Open folder</a></div><div class="l">Drive backup folder</div></div>' : '');
+    const targets = DEPTS.filter(d => d.status === 'Active').map(d => ({ id: d.deptId, name: d.name })).concat([{ id: 'CENTRAL', name: 'HR1 Central database' }]);
+    $('bkTable').innerHTML = '<table><thead><tr><th>Database</th><th>Latest backup</th><th></th></tr></thead><tbody>' + targets.map(t => {
+      const b = last[t.id];
+      return '<tr><td>' + esc(t.name) + ' <span class="mono">(' + esc(t.id) + ')</span></td><td>' + (b ? '<a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + esc(fmtDate(b.created)) + '</a>' : '<span class="badge warn">No backup yet</span>') +
+        '</td><td><button class="btn btn-ghost btn-sm" data-bk="' + esc(t.id) + '">Back up now</button></td></tr>'; }).join('') + '</tbody></table>' +
+      '<h3 style="margin:16px 0 6px">Recent backups</h3>' + (list.length ? '<table><thead><tr><th>Date</th><th>File</th></tr></thead><tbody>' + list.slice(0, 30).map(b => '<tr><td style="white-space:nowrap">' + esc(fmtDate(b.created)) + '</td><td><a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + esc(b.name) + '</a></td></tr>').join('') + '</tbody></table>' : '<div class="empty">No backups yet.</div>');
+    $('bkTable').querySelectorAll('[data-bk]').forEach(b => b.onclick = () => bkRun(b.dataset.bk));
+  } catch (e) { $('bkTable').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function bkRun(id) {
+  apConfirm('Back up now', id === 'ALL' ? 'Copy <strong>every</strong> department database and the HR1 Central database to the backup folder.' : 'Copy <strong>' + esc(id) + '</strong> to the backup folder.', 'Back up', async () => {
+    const out = await callApi('hr1Central', { op: 'backupNow', deptId: id });
+    const bad = out.filter(o => !o.ok);
+    toast(bad.length ? 'Failed: ' + bad.map(o => o.id + ' – ' + o.error).join('; ') : out.length + ' backup(s) created', !!bad.length); loadBackups();
+  });
+}
+
+/* ----- Role & Permission ----- */
+const ROLE_MATRIX = [
+  ['HR1 (central)', 'All departments', 'Create / rename / deactivate departments; Sections, Staff, login accounts, KPI setup, monthly targets, HR appraisal actions, reports, backups, audit logs of every department.'],
+  ['HR (department)', 'Whole department', 'Department HR work in the main app: attendance, appraisal, recognition, memos, manual scores, training, special-work decisions, masters.'],
+  ['Manager', 'Own Section only', 'Work register approval, attendance, leave, special-work recommendation for the own Section. Cannot see other Sections or departments.'],
+  ['Staff', 'Own data only', 'Own work entries, attendance, leave, memo reply, own scorecard.']
+];
+async function loadRoles() {
+  $('rlMatrix').innerHTML = '<table><thead><tr><th>Role</th><th>Scope</th><th>What it can do</th></tr></thead><tbody>' + ROLE_MATRIX.map(r => '<tr><td><strong>' + esc(r[0]) + '</strong></td><td>' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>').join('') + '</tbody></table>' +
+    '<div class="hint" style="margin-top:8px">Scope is enforced on the server for every request, not only on screen.</div>';
+  $('rlTable').innerHTML = '<div class="loading">Loading…</div>';
+  try { RL = await callApi('hr1Central', { op: 'listAccess' });
+    const dn = Array.from(new Set(RL.map(r => r.deptId))).sort(); const keep = $('rlDept').value;
+    $('rlDept').innerHTML = '<option value="">All departments</option>' + dn.map(d => '<option value="' + esc(d) + '">' + esc((RL.filter(r => r.deptId === d)[0] || {}).deptName || d) + '</option>').join(''); $('rlDept').value = dn.indexOf(keep) !== -1 ? keep : '';
+    renderRoles();
+  } catch (e) { $('rlTable').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+let RL = [];
+function renderRoles() {
+  const d = $('rlDept').value, ro = $('rlRole').value, q = $('rlSearch').value.trim().toLowerCase();
+  const rows = RL.filter(r => (!d || r.deptId === d) && (!ro || r.role === ro) && (!q || (r.userId + ' ' + r.section).toLowerCase().indexOf(q) !== -1));
+  $('rlTable').innerHTML = rows.length ? '<table><thead><tr><th>User ID</th><th>Department</th><th>Section</th><th>Role</th><th>Status</th></tr></thead><tbody>' +
+    rows.map(r => '<tr><td class="mono">' + esc(r.userId) + '</td><td>' + esc(r.deptName || r.deptId) + '</td><td>' + esc(r.section || '–') + '</td><td><span class="badge ' + (r.role === 'HR1' ? 'warn' : '') + '">' + esc(r.role) + '</span></td><td>' + esc(r.status) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">No matching entries.</div>';
+}
+
+/* ----- Settings ----- */
+async function loadSettings() {
+  $('stInfo').innerHTML = '<div class="loading">Loading…</div>'; $('stAdmins').innerHTML = '';
+  try {
+    const [info, acc] = await Promise.all([callApi('hr1Central', { op: 'systemInfo' }), callApi('hr1Central', { op: 'listAccess' })]);
+    const row = (k, v) => '<tr><td style="color:var(--coffee-500);padding:4px 14px 4px 0">' + esc(k) + '</td><td>' + v + '</td></tr>';
+    $('stInfo').innerHTML = '<table style="font-size:14px">' + row('Signed in as', esc((SESSION && (SESSION.staffName || SESSION.userId)) || '') + ' (' + esc((SESSION && SESSION.userId) || '') + ')') +
+      row('Departments', esc(info.departments)) + row('Time zone', esc(info.timeZone)) +
+      row('Central database', '<a href="' + esc(info.centralUrl) + '" target="_blank" rel="noopener">Open spreadsheet</a>') +
+      row('Daily backup', info.backupTrigger ? 'On (~2:30 AM)' : 'Off') + row('Backups kept per database', esc(info.keepPerDept)) +
+      row('Server address', '<span class="mono" style="word-break:break-all">' + esc(API_URL) + '</span>') + '</table>';
+    const admins = acc.filter(r => r.role === 'HR1');
+    $('stAdmins').innerHTML = admins.length ? '<table><thead><tr><th>User ID</th><th>Status</th></tr></thead><tbody>' + admins.map(r => '<tr><td class="mono">' + esc(r.userId) + '</td><td>' + esc(r.status) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">None found.</div>';
+  } catch (e) { $('stInfo').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+
+$('mtDept').onchange = function () { CUR_DEPT = this.value; loadTargets(); };
+$('mtRefresh').onclick = mtShow;
+$('rpType').onchange = rpType; $('rpRun').onclick = rpRun;
+$('rpCsv').onclick = () => { if (!RP.rows.length) { toast('Run a report first.', true); return; } downloadCsv(RP.name, RP.head, RP.rows); };
+$('bkAll').onclick = () => bkRun('ALL'); $('bkRefresh').onclick = loadBackups;
+$('bkOn').onclick = () => apConfirm('Turn on daily backup', 'A backup of every department database and the HR1 Central database will be taken every night around 2:30 AM.', 'Turn on', async () => { await callApi('hr1Central', { op: 'installBackupTrigger' }); toast('Daily backup is on'); loadBackups(); });
+$('bkOff').onclick = () => apConfirm('Turn off daily backup', 'Nightly backups stop. Existing backups are not deleted.', 'Turn off', async () => { await callApi('hr1Central', { op: 'removeBackupTrigger' }); toast('Daily backup is off'); loadBackups(); });
+$('rlDept').onchange = renderRoles; $('rlRole').onchange = renderRoles; $('rlSearch').oninput = renderRoles;
 $('apStatus').onclick = () => apStatus(false);
 $('apSave').onclick = apSave;
 $('apLock').onclick = () => apLock('');
