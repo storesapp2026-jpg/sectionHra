@@ -237,7 +237,7 @@ a{color:var(--coffee-700);}
       <!-- HR Appraisal (read-only, phase 1) -->
       <section id="page-appr" hidden>
         <h2>HR Appraisal</h2>
-        <p class="lead">Read-only view of the appraisal of one section at a time. Saving snapshots, approve &amp; lock, recognition, memos, manual scores and training are still done in the main app by that department’s HR/Manager.</p>
+        <p class="lead">Appraisal of one section at a time. Snapshot, approve &amp; lock, recognition and memos can be done here. Special Work is recommended by the department Manager in the main app; HR decides it here.</p>
         <div class="panel">
           <div class="toolbar">
             <select id="apDept" title="Department"></select>
@@ -267,6 +267,9 @@ a{color:var(--coffee-700);}
           <button class="btn btn-ghost btn-sm" data-tab="formula">Formula Verification</button>
           <button class="btn btn-ghost btn-sm" data-tab="recog">Recognition</button>
           <button class="btn btn-ghost btn-sm" data-tab="memo">Memos</button>
+          <button class="btn btn-ghost btn-sm" data-tab="manual">Manual Scores</button>
+          <button class="btn btn-ghost btn-sm" data-tab="training">Training</button>
+          <button class="btn btn-ghost btn-sm" data-tab="swork">Special Work</button>
         </div>
         <div class="panel"><div class="tablewrap" id="apBody"><div class="empty">Choose a section and period, then press Run Appraisal.</div></div></div>
       </section>
@@ -1031,6 +1034,9 @@ async function apRender() {
   if (t === 'score') { await apScore(); return; }
   if (t === 'recog') { await apRecog(); return; }
   if (t === 'memo') { await apMemos(); return; }
+  if (t === 'manual') { await apManual(); return; }
+  if (t === 'training') { await apTraining(); return; }
+  if (t === 'swork') { await apSwork(); return; }
   const p = apNeed(t === 'trend' ? false : true); if (!p) return;
   body.innerHTML = '<div class="loading">Loading…</div>';
   try {
@@ -1383,6 +1389,164 @@ function apMemoView(p, id) {
       await hr1('decideMemo', a); toast('Final decision recorded'); apMemos();
     });
   };
+}
+
+/* ---- HR Appraisal: Manual Scores, Training, Special Work (phase 2-C) ---- */
+function apDay(v) { return v ? String(v).slice(0, 10) : ''; }
+async function apManual() {
+  const p = apPeriodNeed(); if (!p) return;
+  const body = $('apBody'); body.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const staff = apSecStaff(p.section);
+    const rows = await hr1('getManualScores', { periodLabel: p.periodLabel });
+    const by = {}; rows.forEach(r => { by[r['Staff ID']] = r; });
+    AP.manual = by;
+    body.innerHTML = '<div class="hint" style="margin-bottom:8px">Manual ratings for <strong>' + esc(p.periodLabel) + '</strong>. Training is calculated automatically from Training records.</div>' +
+      (staff.length ? '<table><thead><tr><th>Staff</th><th>Status</th><th class="num">Discipline</th><th class="num">Policy</th><th class="num">Behaviour</th><th class="num">Remarks</th><th>Entered by</th><th></th></tr></thead><tbody>' +
+        staff.map(s => { const r = by[s['Staff ID']]; return '<tr><td>' + esc(s['Staff ID']) + ' · ' + esc(s['Staff Name']) + '</td><td>' +
+          (r ? '<span class="badge ok">Entered</span>' : '<span class="badge warn">Pending</span>') + '</td>' +
+          (r ? '<td class="num">' + esc(r['Discipline Rating']) + '</td><td class="num">' + esc(r['Policy Compliance Rating']) + '</td><td class="num">' + esc(r['Behaviour Rating']) + '</td><td class="num">' + esc(r['HR Remarks Rating']) + '</td><td>' + esc(r['Entered By']) + '</td>' : '<td></td><td></td><td></td><td></td><td></td>') +
+          '<td><button class="btn btn-ghost btn-sm" data-msid="' + esc(s['Staff ID']) + '">' + (r ? 'Edit' : 'Enter') + '</button></td></tr>'; }).join('') + '</tbody></table>'
+        : '<div class="empty">No active staff in this section.</div>');
+    body.querySelectorAll('[data-msid]').forEach(b => b.onclick = () => apManualModal(p, b.dataset.msid));
+  } catch (e) { body.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+async function apManualModal(p, sid) {
+  const s = apSecStaff(p.section).filter(x => x['Staff ID'] === sid)[0]; if (!s) return;
+  const ex = (AP.manual || {})[sid];
+  let v = ex, note = 'Existing values loaded.';
+  if (!ex) {
+    if (!p.from || !p.to) { toast('Enter From and To dates to pre-fill attendance values.', true); return; }
+    try {
+      const a = await hr1('getAutoHRAppraisal', { staffId: sid, periodLabel: p.periodLabel, from: p.from, to: p.to });
+      v = (a[0] && a[0].manualEquivalent) || {}; note = 'Attendance values pre-filled from the registers (From–To dates). Ratings start at the neutral default; set them.';
+    } catch (e) { toast(e.message, true); return; }
+  }
+  const num = (id, label, key, step, max) => '<div class="field" style="flex:1;min-width:120px"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="number" min="0"' + (max ? ' max="' + max + '"' : '') + ' step="' + step + '" value="' + esc(v[key] == null ? 0 : v[key]) + '"></div>';
+  openModal('<h3>Manual Scores · ' + esc(s['Staff Name']) + '</h3><div style="font-size:13px;margin-bottom:6px">' + apSnapSummary(p) + '</div><div class="hint" style="margin-bottom:8px">' + esc(note) + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' + num('msWd', 'Working days', 'Working Days', 0.5) + num('msPd', 'Present days', 'Present Days', 0.5) + num('msLd', 'Leave days', 'Leave Days', 0.5) + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' + num('msPh', 'Permission hours', 'Permission Hours', 0.25) + num('msLate', 'Late entries', 'Late Entries', 1) + num('msEarly', 'Early leaving', 'Early Leaving Count', 1) + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' + num('msShift', 'Shift compliance %', 'Shift Compliance %', 0.01, 100) + num('msOt', 'Overtime hours (info)', 'Overtime Hours', 0.25) + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' + num('msDis', 'Discipline (0–10)', 'Discipline Rating', 0.5, 10) + num('msPol', 'Policy (0–10)', 'Policy Compliance Rating', 0.5, 10) + num('msBeh', 'Behaviour (0–10)', 'Behaviour Rating', 0.5, 10) + num('msRem', 'HR remarks (0–5)', 'HR Remarks Rating', 0.5, 5) + '</div>' +
+    '<div class="field"><label for="msTxt">HR remarks (text)</label><textarea id="msTxt" rows="2" style="width:100%">' + esc(ex ? ex['HR Remarks'] : '') + '</textarea></div>' +
+    '<div class="err" id="mErr"></div><div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mOk">Save</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mOk').onclick = function () {
+    const g = id => Number($(id).value);
+    const a = { staffId: sid, periodLabel: p.periodLabel, workingDays: g('msWd'), presentDays: g('msPd'), leaveDays: g('msLd'), permissionHours: g('msPh'),
+      lateEntries: g('msLate'), earlyLeavingCount: g('msEarly'), shiftCompliancePct: g('msShift'), overtimeHours: g('msOt'),
+      discipline: g('msDis'), policyCompliance: g('msPol'), behaviour: g('msBeh'), hrRemarksRating: g('msRem'), hrRemarks: $('msTxt').value.trim() };
+    if (a.presentDays > a.workingDays || a.leaveDays > a.workingDays || a.presentDays + a.leaveDays > a.workingDays) { $('mErr').textContent = 'Present + Leave days cannot exceed Working days.'; return; }
+    if (a.discipline > 10 || a.policyCompliance > 10 || a.behaviour > 10 || a.hrRemarksRating > 5) { $('mErr').textContent = 'Rating above its maximum.'; return; }
+    closeModal();
+    apConfirm('Save Manual Scores', esc(s['Staff Name']) + ' · ' + esc(p.periodLabel) + '<br>Discipline ' + a.discipline + ', Policy ' + a.policyCompliance + ', Behaviour ' + a.behaviour + ', Remarks ' + a.hrRemarksRating +
+      '<br><br>This changes the HR score of this staff member for this period.', 'Save', async () => {
+      const r = await hr1('submitManualScores', a); toast(r.updated ? 'Manual scores updated' : 'Manual scores saved'); apManual();
+    });
+  };
+}
+async function apTraining() {
+  const p = apPeriodNeed(); if (!p) return;
+  const body = $('apBody'); body.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const ids = apSecIds(p.section);
+    const q = {}; if (p.from) q.from = p.from; if (p.to) q.to = p.to;
+    const rows = (await hr1('getTrainingRecords', q)).filter(r => ids.indexOf(r['Staff ID']) !== -1);
+    AP.training = rows;
+    body.innerHTML = '<div class="toolbar"><button class="btn btn-primary btn-sm" id="trAdd">+ Add Training Record</button></div>' +
+      '<div class="hint" style="margin-bottom:8px">' + (p.from && p.to ? 'Records dated ' + esc(p.from) + ' to ' + esc(p.to) + '.' : 'All records.') + ' Score is calculated automatically from the assessment score and validity.</div>' +
+      (rows.length ? '<table><thead><tr><th>ID</th><th>Staff</th><th>Training</th><th>Date</th><th>Attendance</th><th class="num">Assessment</th><th>Completion</th><th>Eligible</th><th class="num">Score</th><th></th></tr></thead><tbody>' +
+        rows.map(r => '<tr><td class="mono">' + esc(r['Training Record ID']) + '</td><td>' + esc(r['Staff ID']) + '</td><td>' + esc(r['Training Name']) + '</td><td>' + esc(apDay(r['Training Date'])) + '</td><td>' + esc(r['Attendance']) +
+          '</td><td class="num">' + esc(r['Assessment Score']) + '</td><td>' + esc(r['Completion Status']) + '</td><td>' + esc(r['Eligible']) + '</td><td class="num">' + esc(r['Auto Score']) +
+          '</td><td><button class="btn btn-ghost btn-sm" data-tre="' + esc(r['Training Record ID']) + '">Edit</button></td></tr>').join('') + '</tbody></table>'
+        : '<div class="empty">No training records for this section.</div>');
+    $('trAdd').onclick = () => apTrainingModal(p, null);
+    body.querySelectorAll('[data-tre]').forEach(b => b.onclick = () => apTrainingModal(p, b.dataset.tre));
+  } catch (e) { body.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function apTrainingModal(p, rid) {
+  const r = rid ? (AP.training || []).filter(x => x['Training Record ID'] === rid)[0] : null;
+  const masters = ((MASTER && MASTER.trainingMaster) || []).filter(t => String(t['Status']) === 'Active');
+  const opt = (arr, cur) => arr.map(x => '<option' + (x === cur ? ' selected' : '') + '>' + esc(x) + '</option>').join('');
+  openModal('<h3>' + (r ? 'Edit Training ' + esc(rid) : 'Add Training Record') + '</h3>' +
+    (r ? '<div class="hint" style="margin-bottom:8px">' + esc(r['Staff ID']) + ' · ' + esc(r['Training Name']) + ' · ' + esc(apDay(r['Training Date'])) + ' (staff, training and date cannot be changed; delete and re-add in the main app if wrong)</div>'
+      : '<div class="field"><label>Staff</label><select id="trStaff">' + apStaffOptions(p.section) + '</select></div>' +
+        '<div class="field"><label>Training</label><select id="trMaster">' + masters.map(t => '<option value="' + esc(t['Training ID']) + '">' + esc(t['Training Name']) + '</option>').join('') + '</select></div>' +
+        '<div class="field"><label>Training date</label><input id="trDate" type="date"></div>') +
+    '<div class="field"><label>Trainer</label><input id="trTrainer" type="text" value="' + esc(r ? r['Trainer'] : '') + '"></div>' +
+    '<div class="field"><label>Mode</label><input id="trMode" type="text" placeholder="Classroom / On-the-job / Online" value="' + esc(r ? r['Mode'] : '') + '"></div>' +
+    '<div class="field"><label>Attendance</label><select id="trAtt">' + opt(['Present', 'Absent'], r && r['Attendance']) + '</select></div>' +
+    '<div class="field"><label>Assessment score (0–100)</label><input id="trScore" type="number" min="0" max="100" value="' + esc(r ? r['Assessment Score'] : 0) + '"></div>' +
+    '<div class="field"><label>Completion</label><select id="trComp">' + opt(['Completed', 'Not Completed', 'Failed'], r && r['Completion Status']) + '</select></div>' +
+    '<div class="field"><label>Certificate / evidence (link or note)</label><input id="trCert" type="text" value="' + esc(r ? r['Certificate / Evidence'] : '') + '"></div>' +
+    '<div class="err" id="mErr"></div><div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mOk">Save</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mOk').onclick = async function () {
+    const a = { trainer: $('trTrainer').value.trim(), mode: $('trMode').value.trim(), attendance: $('trAtt').value, assessmentScore: Number($('trScore').value), completionStatus: $('trComp').value, certificateUrl: $('trCert').value.trim() };
+    if (!r) {
+      a.staffId = $('trStaff').value; a.trainingId = $('trMaster').value; a.trainingDate = $('trDate').value;
+      if (!a.staffId || !a.trainingId || !a.trainingDate) { $('mErr').textContent = 'Staff, training and date are required.'; return; }
+    } else a.trainingRecordId = rid;
+    this.disabled = true; this.textContent = 'Please wait…'; $('mErr').textContent = '';
+    try {
+      const o = await hr1(r ? 'updateTrainingRecord' : 'addTrainingRecord', a);
+      closeModal(); toast((r ? 'Updated ' : 'Added ') + (o.trainingRecordId) + ' · score ' + o.autoScore + (o.eligible ? '' : ' (not eligible)')); apTraining();
+    } catch (e) { $('mErr').textContent = e.message; this.disabled = false; this.textContent = 'Save'; }
+  };
+}
+async function apSwork() {
+  const p = apPeriodNeed(); if (!p) return;
+  const body = $('apBody'); body.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const key = x => String(x || 'Stores').trim().toLowerCase();
+    const rows = (await hr1('getSpecialWork', { periodLabel: p.periodLabel })).filter(r => key(r['Section']) === key(p.section));
+    AP.sw = rows;
+    const badge = s => '<span class="badge ' + (s === 'Approved' ? 'ok' : (s === 'Rejected' || s === 'Cancelled' ? 'off' : 'warn')) + '">' + esc(s) + '</span>';
+    body.innerHTML = '<div class="toolbar"><button class="btn btn-primary btn-sm" id="swAdd">+ Assign Special Work</button></div>' +
+      '<div class="hint" style="margin-bottom:8px">Flow: Assigned → Manager recommends marks (main app) → HR approves or rejects here. Approved marks are added as recognition automatically.</div>' +
+      (rows.length ? '<table><thead><tr><th>ID</th><th>Staff</th><th>Work</th><th>Status</th><th class="num">Recommended</th><th class="num">Approved</th><th></th></tr></thead><tbody>' +
+        rows.map(r => '<tr><td class="mono">' + esc(r['Work ID']) + '</td><td>' + esc(r['Staff ID']) + ' · ' + esc(r['Staff Name']) + '</td><td>' + esc(r['Work Title']) + (r['Completion Note'] ? '<div class="hint">' + esc(r['Completion Note']) + '</div>' : '') +
+          '</td><td>' + badge(r['Status']) + '</td><td class="num">' + esc(r['Recommended Marks']) + '</td><td class="num">' + esc(r['HR Marks']) + '</td><td><div class="actions">' +
+          (r['Status'] === 'Recommended' ? '<button class="btn btn-primary btn-sm" data-swd="' + esc(r['Work ID']) + '">Decide</button>' : '') +
+          (r['Status'] === 'Assigned' || r['Status'] === 'Recommended' ? '<button class="btn btn-ghost btn-sm" data-swc="' + esc(r['Work ID']) + '">Cancel</button>' : '') + '</div></td></tr>').join('') + '</tbody></table>'
+        : '<div class="empty">No special work for this section and period.</div>');
+    $('swAdd').onclick = () => apSworkAdd(p);
+    body.querySelectorAll('[data-swd]').forEach(b => b.onclick = () => apSworkDecide(b.dataset.swd));
+    body.querySelectorAll('[data-swc]').forEach(b => b.onclick = () => { const id = b.dataset.swc;
+      apConfirm('Cancel Special Work', 'Cancel <strong>' + esc(id) + '</strong>?', 'Cancel work', async () => { await hr1('cancelSpecialWork', { workId: id }); toast('Cancelled'); apSwork(); }); });
+  } catch (e) { body.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function apSworkAdd(p) {
+  openModal('<h3>Assign Special Work</h3><div style="font-size:13px;margin-bottom:8px">' + apSnapSummary(p) + '</div>' +
+    '<div class="field"><label>Staff</label><select id="swStaff">' + apStaffOptions(p.section) + '</select></div>' +
+    '<div class="field"><label>Work title (required)</label><input id="swTitle" type="text" maxlength="200"></div>' +
+    '<div class="field"><label>Description</label><textarea id="swDesc" rows="2" style="width:100%"></textarea></div>' +
+    '<div class="err" id="mErr"></div><div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mOk">Assign</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mOk').onclick = async function () {
+    if (!$('swTitle').value.trim()) { $('mErr').textContent = 'Work title is required.'; return; }
+    this.disabled = true; this.textContent = 'Please wait…'; $('mErr').textContent = '';
+    try { const r = await hr1('assignSpecialWork', { staffId: $('swStaff').value, periodLabel: p.periodLabel, title: $('swTitle').value.trim(), description: $('swDesc').value.trim() });
+      closeModal(); toast('Assigned ' + r.workId); apSwork(); }
+    catch (e) { $('mErr').textContent = e.message; this.disabled = false; this.textContent = 'Assign'; }
+  };
+}
+function apSworkDecide(id) {
+  const w = (AP.sw || []).filter(x => x['Work ID'] === id)[0]; if (!w) return;
+  openModal('<h3>Decide Special Work ' + esc(id) + '</h3><div style="font-size:13px;margin-bottom:8px">' + esc(w['Staff Name']) + ' · ' + esc(w['Work Title']) + '<br>Completion note: ' + esc(w['Completion Note'] || '–') + '<br>Manager recommended: <strong>+' + esc(w['Recommended Marks']) + '</strong></div>' +
+    '<div class="field"><label>Approved marks (1–5)</label><input id="swMarks" type="number" min="1" max="5" step="0.5" value="' + esc(w['Recommended Marks']) + '"></div>' +
+    '<div class="field"><label>Remark (required to reject)</label><textarea id="swRem" rows="2" style="width:100%"></textarea></div>' +
+    '<div class="err" id="mErr"></div><div class="btns"><button class="btn btn-ghost" id="mCancel">Close</button><button class="btn btn-ghost" id="swRej">Reject</button><button class="btn btn-primary" id="swApp">Approve</button></div>');
+  $('mCancel').onclick = closeModal;
+  const go = (decision) => {
+    const rem = $('swRem').value.trim();
+    if (decision === 'Reject' && !rem) { $('mErr').textContent = 'A remark is required to reject.'; return; }
+    const a = { workId: id, decision: decision, remark: rem }; if (decision === 'Approve') a.marks = Number($('swMarks').value);
+    apConfirm(decision + ' Special Work', esc(w['Staff Name']) + ' · ' + esc(w['Work Title']) + (decision === 'Approve' ? '<br>Marks: <strong>+' + a.marks + '</strong> (added to the HR score as recognition)' : ''), decision, async () => {
+      const r = await hr1('decideSpecialWork', a); toast(r.status + (r.marks ? ' (+' + r.marks + ')' : '')); apSwork();
+    });
+  };
+  $('swApp').onclick = () => go('Approve'); $('swRej').onclick = () => go('Reject');
 }
 $('apStatus').onclick = () => apStatus(false);
 $('apSave').onclick = apSave;
