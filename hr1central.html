@@ -130,6 +130,7 @@ a{color:var(--coffee-700);}
       <button data-page="departments">Departments</button>
       <button data-page="sections">Sections</button>
       <button data-page="staff">Staff</button>
+      <button data-page="users">User Accounts</button>
     </nav>
     <main>
       <!-- Dashboard -->
@@ -187,6 +188,21 @@ a{color:var(--coffee-700);}
           </div>
           <div class="tablewrap" id="stTable"><div class="loading">Loading…</div></div>
           <div class="pager" id="stPager"></div>
+        </div>
+      </section>
+
+      <!-- User Accounts -->
+      <section id="page-users" hidden>
+        <h2>User Accounts</h2>
+        <p class="lead">Logins of the selected department. New and reset passwords use the default password and must be changed at first login. HR accounts are not managed here.</p>
+        <div class="panel">
+          <div class="toolbar">
+            <select id="uaDept" title="Department"></select>
+            <input id="uaSearch" class="grow" type="search" placeholder="Search by name, staff ID or user ID">
+            <select id="uaFilter"><option value="">All</option><option value="nologin">No login yet</option><option value="active">Login active</option><option value="inactive">Login inactive</option><option value="locked">Locked</option></select>
+          </div>
+          <div class="tablewrap" id="uaTable"><div class="loading">Loading…</div></div>
+          <div class="pager" id="uaPager"></div>
         </div>
       </section>
     </main>
@@ -302,7 +318,7 @@ async function enterApp() {
 
 function logout() {
   const tok = SESSION && SESSION.token;
-  SESSION = null; DEPTS = []; MASTER = null; CUR_DEPT = '';
+  SESSION = null; DEPTS = []; MASTER = null; CUR_DEPT = ''; UA = [];
   sessionStorage.removeItem(SESSION_KEY);
   $('app').hidden = true; $('loginScreen').hidden = false;
   $('loginPassword').value = '';
@@ -316,10 +332,12 @@ function showPage(name) {
   $('page-departments').hidden = name !== 'departments';
   $('page-sections').hidden = name !== 'sections';
   $('page-staff').hidden = name !== 'staff';
+  $('page-users').hidden = name !== 'users';
   if (name === 'dashboard') loadDashboard();
   if (name === 'departments') loadDepartments();
   if (name === 'sections') loadSections();
   if (name === 'staff') loadStaff();
+  if (name === 'users') loadUsers();
 }
 
 /* ---------------- dashboard ---------------- */
@@ -615,6 +633,101 @@ function staffModal(id) {
   $('mName').focus();
 }
 
+/* ----- User Accounts ----- */
+let UA = [], uaPage = 1;
+async function loadUsers() {
+  fillDeptSelect($('uaDept'));
+  $('uaTable').innerHTML = '<div class="loading">Loading…</div>'; $('uaPager').innerHTML = '';
+  try { UA = await hr1('getLoginAccounts', {}); renderUsers(); }
+  catch (e) { UA = []; $('uaTable').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+function uaState(r) {
+  if (!r.userId) return 'nologin';
+  if (r.locked) return 'locked';
+  return String(r.status) === 'Inactive' ? 'inactive' : 'active';
+}
+function renderUsers() {
+  const q = $('uaSearch').value.trim().toLowerCase(), f = $('uaFilter').value;
+  const rows = UA.filter(r => (!f || uaState(r) === f) &&
+    (!q || (r.staffId + ' ' + r.staffName + ' ' + r.userId).toLowerCase().indexOf(q) !== -1));
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (uaPage > pages) uaPage = pages;
+  if (!rows.length) { $('uaTable').innerHTML = '<div class="empty">' + (UA.length ? 'No accounts match.' : 'No staff in this department yet. Add staff first.') + '</div>'; $('uaPager').innerHTML = ''; return; }
+  const slice = rows.slice((uaPage - 1) * PAGE_SIZE, uaPage * PAGE_SIZE);
+  $('uaTable').innerHTML = '<table><thead><tr><th>Staff ID</th><th>Name</th><th>Section</th><th>User ID</th><th>Role</th><th>Login</th><th>Actions</th></tr></thead><tbody>' +
+    slice.map(r => {
+      const st = uaState(r), isHR = String(r.role) === 'HR', id = esc(r.userId), sid = esc(r.staffId);
+      let badge;
+      if (st === 'nologin') badge = '<span class="badge warn">No login</span>';
+      else if (st === 'locked') badge = '<span class="badge off">Locked</span>';
+      else if (st === 'inactive') badge = '<span class="badge off">Inactive</span>';
+      else badge = '<span class="badge ok">Active</span>' + (r.mustChangePassword ? ' <span class="badge warn" title="Has not changed the default password yet">Default pwd</span>' : '');
+      let act = '';
+      if (st === 'nologin') {
+        act = String(r.staffStatus) === 'Inactive' ? '<span class="mono">Staff inactive</span>'
+          : '<button class="btn btn-primary btn-sm" data-act="create" data-sid="' + sid + '">Create login</button>';
+      } else if (isHR) {
+        act = '<span class="mono">HR account</span>';
+      } else {
+        act = '<button class="btn btn-ghost btn-sm" data-act="reset" data-uid="' + id + '">Reset password</button>' +
+          (r.locked ? '<button class="btn btn-ok btn-sm" data-act="unlock" data-uid="' + id + '">Unlock</button>' : '') +
+          (st === 'inactive' ? '<button class="btn btn-ok btn-sm" data-act="activate" data-uid="' + id + '">Activate</button>'
+            : '<button class="btn btn-danger btn-sm" data-act="deactivate" data-uid="' + id + '">Deactivate</button>');
+      }
+      return '<tr><td class="mono">' + sid + '</td><td>' + esc(r.staffName) + '</td><td>' + esc(r.section) + '</td><td class="mono">' + id + '</td><td>' + esc(r.role) + '</td><td>' + badge + '</td><td><div class="actions">' + act + '</div></td></tr>';
+    }).join('') + '</tbody></table>';
+  $('uaPager').innerHTML = pagerHtml(rows.length, uaPage, pages, 'account(s)');
+}
+function uaRow(key, val) { return UA.filter(r => r[key] === val)[0]; }
+function passwordResultModal(title, userId, pwd) {
+  openModal('<h3>' + esc(title) + '</h3>' +
+    '<p style="font-size:14px;line-height:1.6">User ID: <strong class="mono">' + esc(userId) + '</strong><br>Default password: <strong class="mono">' + esc(pwd) + '</strong></p>' +
+    '<p style="font-size:12.5px;color:var(--coffee-500);margin-top:8px">Give these to the person now. They must set their own password at first login.</p>' +
+    '<div class="btns"><button class="btn btn-primary" id="mCancel">Done</button></div>');
+  $('mCancel').onclick = closeModal;
+}
+function createLoginModal(staffId) {
+  const r = uaRow('staffId', staffId); if (!r) return;
+  openModal('<h3>Create login for ' + esc(r.staffName) + '</h3>' +
+    '<div class="field"><label>Staff</label><div class="mono">' + esc(r.staffId) + ' · ' + esc(r.section) + '</div></div>' +
+    '<div class="field"><label for="mRole">Role</label><select id="mRole"><option>Staff</option><option>Manager</option></select>' +
+    '<div class="hint">A Manager can manage only this staff member’s own section.</div></div>' +
+    '<div class="field"><label for="mUid">User ID (optional)</label><input id="mUid" type="text" maxlength="30" autocomplete="off">' +
+    '<div class="hint">3–30 letters, numbers, dot, dash or underscore. Leave blank to generate one. Must be unique across all departments.</div></div>' +
+    '<div class="err" id="mErr"></div>' +
+    '<div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn btn-primary" id="mSave">Create login</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mSave').onclick = async function () {
+    const btn = this; btn.disabled = true; btn.textContent = 'Creating…'; $('mErr').textContent = '';
+    try {
+      const out = await hr1('createLoginAccount', { staffId: staffId, role: $('mRole').value, userId: $('mUid').value.trim() });
+      passwordResultModal('Login created', out.userId, out.defaultPassword);
+      UA = await hr1('getLoginAccounts', {}); renderUsers();
+    } catch (e) { $('mErr').textContent = e.message; btn.disabled = false; btn.textContent = 'Create login'; }
+  };
+}
+function confirmUaModal(title, text, btnLabel, danger, fn) {
+  openModal('<h3>' + esc(title) + '</h3><p style="font-size:14px;line-height:1.5">' + esc(text) + '</p><div class="err" id="mErr"></div>' +
+    '<div class="btns"><button class="btn btn-ghost" id="mCancel">Cancel</button><button class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" id="mSave">' + esc(btnLabel) + '</button></div>');
+  $('mCancel').onclick = closeModal;
+  $('mSave').onclick = async function () {
+    const btn = this; btn.disabled = true; $('mErr').textContent = '';
+    try { await fn(); } catch (e) { $('mErr').textContent = e.message; btn.disabled = false; }
+  };
+}
+function userAction(act, userId) {
+  const r = uaRow('userId', userId); if (!r) return;
+  const refresh = async () => { UA = await hr1('getLoginAccounts', {}); renderUsers(); };
+  if (act === 'reset') confirmUaModal('Reset password for ' + r.staffName + '?', 'The password becomes the default password and the person must change it at next login. Any open session of this user is ended.', 'Reset password', true,
+    async () => { const o = await hr1('resetLoginPassword', { userId: userId }); passwordResultModal('Password reset', o.userId, o.defaultPassword); await refresh(); });
+  else if (act === 'unlock') confirmUaModal('Unlock ' + r.userId + '?', 'The failed-login counter is cleared and the user can try again.', 'Unlock', false,
+    async () => { await hr1('unlockLoginAccount', { userId: userId }); closeModal(); toast('Account unlocked'); await refresh(); });
+  else if (act === 'deactivate') confirmUaModal('Deactivate login ' + r.userId + '?', 'This user can no longer log in. No data is deleted; you can activate it again.', 'Deactivate', true,
+    async () => { await hr1('setLoginAccountStatus', { userId: userId, status: 'Inactive' }); closeModal(); toast('Login deactivated'); await refresh(); });
+  else if (act === 'activate') confirmUaModal('Activate login ' + r.userId + '?', 'This user will be able to log in again.', 'Activate', false,
+    async () => { await hr1('setLoginAccountStatus', { userId: userId, status: 'Active' }); closeModal(); toast('Login activated'); await refresh(); });
+}
+
 /* ---------------- wiring ---------------- */
 $('loginBtn').onclick = doLogin;
 $('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
@@ -651,6 +764,14 @@ $('stStatus').onchange = () => { stPage = 1; renderStaff(); };
 $('stAdd').onclick = () => { if (MASTER) staffModal(null); };
 $('stTable').addEventListener('click', ev => { const b = ev.target.closest('button[data-act]'); if (b) staffModal(b.dataset.id); });
 $('stPager').addEventListener('click', ev => { const b = ev.target.closest('button[data-pg]'); if (!b) return; stPage += b.dataset.pg === 'next' ? 1 : -1; renderStaff(); });
+$('uaDept').onchange = function () { CUR_DEPT = this.value; uaPage = 1; loadUsers(); };
+$('uaSearch').oninput = () => { uaPage = 1; renderUsers(); };
+$('uaFilter').onchange = () => { uaPage = 1; renderUsers(); };
+$('uaTable').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-act]'); if (!b) return;
+  if (b.dataset.act === 'create') createLoginModal(b.dataset.sid); else userAction(b.dataset.act, b.dataset.uid);
+});
+$('uaPager').addEventListener('click', ev => { const b = ev.target.closest('button[data-pg]'); if (!b) return; uaPage += b.dataset.pg === 'next' ? 1 : -1; renderUsers(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 /* restore a saved session after a page reload */
