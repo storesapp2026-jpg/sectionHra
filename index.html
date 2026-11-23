@@ -352,6 +352,10 @@ main.content{
           <div id="notifList" style="padding:4px 0;"></div>
         </div>
       </div>
+      <span id="hr1DeptWrap" style="display:none;align-items:center;gap:4px;">
+        <span title="HR1: choose which department's data this page works on">🏢</span>
+        <select id="hr1DeptSel" onchange="hr1SwitchDept(this.value)" style="padding:4px 6px;border-radius:6px;max-width:150px;"></select>
+      </span>
       <button id="hr1CentralBtn" style="display:none;" onclick="openHr1Central()">HR1 Central ➜</button>
       <button onclick="openChangePasswordModal()" data-i18n="changePassword">Change Password</button>
       <button class="lang-toggle" onclick="toggleLang()">தமிழ் / EN</button>
@@ -1974,6 +1978,8 @@ const I18N = {
   hrPendingDays: { en: "attendance day(s) not yet Verified by Manager/HR.", ta: "நாட்கள் Manager/HR மூலம் இன்னும் verify ஆகவில்லை." },
   hrPendingNoRecords: { en: "No attendance record in this period.", ta: "இந்த காலத்தில் attendance பதிவு இல்லை." },
   vsPrevPeriod: { en: "vs previous period", ta: "முந்தைய காலத்தை விட" },
+  hr1NotInDept: { en: "This function is not available while viewing {dept}. Switch the department back to Stores to use it.", ta: "{dept} துறையைப் பார்க்கும்போது இந்த வசதி கிடைக்காது. பயன்படுத்த துறையை மீண்டும் Stores-க்கு மாற்றுங்கள்." },
+  teamTargetShareNote: { en: "Your share of the team target", ta: "Team target-ல் உங்கள் பங்கு" },
   viewMyTrend: { en: "📈 My HR Appraisal Trend", ta: "📈 எனது HR மதிப்பீட்டு போக்கு" },
   dashDateRangeLabel: { en: "Date Range", ta: "தேதி வரம்பு" },
   dashRangeThisMonth: { en: "This Month", ta: "இந்த மாதம்" },
@@ -2108,6 +2114,79 @@ function hasTeamWorkflows(activityId) {
 // a short delay before treating it as real; only a call that fails twice in
 // a row (or a genuinely stale/idle-timed-out session) actually logs out.
 const _apiCache = new Map();
+// ============================================================
+// HR1 DEPARTMENT VIEW (Nov 2026)
+// An HR1 administrator (SESSION.isHR1) can pick a department in the top bar. While a department
+// other than Stores is chosen, every call listed in HR1_VIEW_ACTIONS is sent through the server's
+// hr1Call gateway (same one hr1central.html uses): the SERVER re-checks HR1, the department and the
+// action allow-list, so this list is only a convenience. Any other action is REFUSED here instead of
+// silently running against Stores. Stores (DEP001) = normal behaviour, nothing is routed.
+// ============================================================
+const HR1_HOME_DEPT = 'DEP001';
+const HR1_VIEW_KEY = 'kpi_hr1_view_dept';
+const HR1_VIEW_ACTIONS = new Set([
+  'getMasters','getWorkflowsFreshWithValidation','addSection','updateSection','addStaff','updateStaff','bulkUploadMasters',
+  'getLoginAccounts','createLoginAccount','bulkCreateLoginAccounts','resetLoginPassword','unlockLoginAccount','setLoginAccountStatus',
+  'addActivity','updateActivity','addWorkflow','updateWorkflow','addMonthlyTarget','deleteMonthlyTarget','getMonthlyTargets',
+  'getFullAppraisal','getHRManagementSummary','getHRDashboard','getGradeTrendReport','getHRReviewPendingList','getAttendanceGapReport','getFormulaVerification',
+  'saveAppraisalSnapshot','lockAppraisalSnapshot','reopenAppraisalSnapshot',
+  'getRecognitions','addRecognition','deleteRecognition','getDisciplinaryActions','addDisciplinaryAction','deleteDisciplinaryAction',
+  'reviewMemo','decideMemo','getMemoDetail','getManualScores','submitManualScores','getAutoHRAppraisal',
+  'getTrainingRecords','addTrainingRecord','updateTrainingRecord','getSpecialWork','assignSpecialWork','decideSpecialWork','cancelSpecialWork',
+  'getHRLiveDashboard','getStaffAppraisalTrend'
+]);
+// belong to the HR1 user's own account / session, not to a department's data - always sent as normal
+const HR1_VIEW_PASSTHROUGH = new Set(['login','logout','ping','warm','changePassword','getNotifications','markNotificationRead','markAllNotificationsRead','hr1ListDepartments']);
+let HR1_DEPTS = [];
+
+function hr1ViewDept() {
+  try {
+    if (!SESSION || !SESSION.isHR1) return '';
+    const v = sessionStorage.getItem(HR1_VIEW_KEY) || '';
+    return (v && v !== HR1_HOME_DEPT) ? v : '';
+  } catch (e) { return ''; }
+}
+function hr1DeptName(id) {
+  const d = (HR1_DEPTS || []).find(x => x.deptId === id);
+  return d ? d.name : id;
+}
+// returns the {action, params} to put on the wire (throws when this action may not run in the chosen department)
+function _hr1Wire(action, params) {
+  const dept = hr1ViewDept();
+  if (!dept || HR1_VIEW_PASSTHROUGH.has(action)) return { action: action, params: params };
+  if (!HR1_VIEW_ACTIONS.has(action)) {
+    throw new Error(T('hr1NotInDept').replace('{dept}', hr1DeptName(dept)));
+  }
+  const args = {};
+  Object.keys(params).forEach(k => { if (k !== 'token' && k !== 'reqId') args[k] = params[k]; });
+  const wire = { token: params.token, deptId: dept, hr1Action: action, args: args };
+  if (params.reqId) wire.reqId = params.reqId;   // server de-duplicates a retried write by this id
+  return { action: 'hr1Call', params: wire };
+}
+async function hr1InitDeptSelector() {
+  const wrap = document.getElementById('hr1DeptWrap'), sel = document.getElementById('hr1DeptSel');
+  if (!wrap || !sel) return;
+  if (!SESSION || !SESSION.isHR1 || SESSION.mustChangePassword) { wrap.style.display = 'none'; return; }
+  try { HR1_DEPTS = await callApi('hr1ListDepartments', {}); } catch (e) { wrap.style.display = 'none'; return; }
+  const act = HR1_DEPTS.filter(d => d.status === 'Active');
+  let cur = hr1ViewDept();
+  if (cur && !act.some(d => d.deptId === cur)) { try { sessionStorage.removeItem(HR1_VIEW_KEY); } catch (e) {} cur = ''; }
+  sel.innerHTML = act.map(d => '<option value="' + escapeHtml(d.deptId) + '">' + escapeHtml(d.name) + '</option>').join('');
+  sel.value = cur || HR1_HOME_DEPT;
+  wrap.style.display = act.length > 1 ? 'inline-flex' : 'none';
+  const lbl = document.getElementById('whoLabel');
+  if (cur && lbl) lbl.textContent = SESSION.staffName + ' · HR1 · ' + hr1DeptName(cur);
+}
+function hr1SwitchDept(id) {
+  try {
+    if (!id || id === HR1_HOME_DEPT) sessionStorage.removeItem(HR1_VIEW_KEY); else sessionStorage.setItem(HR1_VIEW_KEY, id);
+    // department data must never be shown from the other department's cache
+    sessionStorage.removeItem('kpi_masters'); sessionStorage.removeItem('kpi_dash');
+  } catch (e) {}
+  _apiCache.clear();
+  location.reload();   // clean restart of the whole screen on the chosen department
+}
+
 const API_CACHEABLE = new Set(['getDashboard','getWorkingRegister','getWorkingRegisterPageData','getEntryGroups','getAttendance','getLeaves','getMyScore','getFullAppraisal','getMonthlyTargets','getMonthlyWorkflowBalances','getTargetDashboard','getDisciplinaryActions','getMasters','getAppraisal','getRecognitions','getManualScores','getTrainingRecords','getHRManagementSummary','getHRDashboard','getHRLiveDashboard','getPendingAttendanceVerification']);
 // REQUEST QUEUE (Sep 2026): Apps Script's echo URL intermittently 404s when many
 // calls are in flight together (e.g. page load). Limit concurrent API calls so
@@ -2190,7 +2269,7 @@ async function _callApiCore(action, params, _retried, _transportRetry) {
   // SPEED (Sep 2026): short browser-side cache for read calls, so going back to a
   // page opened in the last 60s is instant. ANY write clears it, so a user never
   // sees data older than their own last action.
-  const _ck = action + JSON.stringify(params);
+  const _ck = hr1ViewDept() + '|' + action + JSON.stringify(params);
   const _isRead = /^get/.test(action);
   if (!_retried && !_transportRetry) {
     if (_isRead && API_CACHEABLE.has(action)) {
@@ -2213,6 +2292,9 @@ async function _callApiCore(action, params, _retried, _transportRetry) {
   // longer has any way to "become" Manager/HR or act as another staff
   // member by editing these params.
   if (action !== 'login' && SESSION && SESSION.token) params.token = SESSION.token;
+  // HR1 DEPARTMENT VIEW: decided once per attempt, BEFORE a request slot is taken. Throws for an action
+  // that is not allowed in the chosen department (nothing is sent, so nothing can touch Stores by mistake).
+  const _wire = _hr1Wire(action, params);
   // TRANSPORT RETRY (flaky Apps Script echo bugfix): Apps Script's exec
   // endpoint 302-redirects every call to a one-time
   // script.googleusercontent.com/macros/echo?... URL that actually holds the
@@ -2241,7 +2323,7 @@ async function _callApiCore(action, params, _retried, _transportRetry) {
     res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight on Apps Script
-      body: JSON.stringify({ action, params }),
+      body: JSON.stringify({ action: _wire.action, params: _wire.params }),
       signal: _ctrl.signal
     });
     rawText = await res.text();
@@ -2421,7 +2503,7 @@ function logout() {
   SESSION = null;
   _apiCache.clear();
   hrInited = false;
-  sessionStorage.removeItem('kpi_session'); try { sessionStorage.removeItem('kpi_hr1_session'); } catch (e) {}
+  sessionStorage.removeItem('kpi_session'); try { sessionStorage.removeItem('kpi_hr1_session'); sessionStorage.removeItem(HR1_VIEW_KEY); } catch (e) {}
   sessionStorage.removeItem('kpi_masters');
   sessionStorage.removeItem('kpi_dash');
   // Best-effort - invalidate the token server-side too, so it can't still be
@@ -2644,6 +2726,7 @@ async function enterApp() {
     if (_me && _me['Section']) document.getElementById('whoLabel').textContent = SESSION.staffName + ' · ' + SESSION.role + ' · ' + _me['Section'];
   } catch (e) {}
   buildNav();
+  hr1InitDeptSelector().catch(() => {});   // HR1 only: Department drop-down (Stores / Purchase ...)
   document.getElementById('regDate').value = localDateStr(new Date());
   document.getElementById('attDate').value = localDateStr(new Date());
   initNotifications();
@@ -2995,6 +3078,11 @@ function renderDashboard(d) {
   let qtyHtml = '';
   if (d.totalTargetQty !== null && d.totalTargetQty !== undefined) {
     qtyHtml = `<div style="font-size:12px;margin-top:2px;opacity:.85">${fnum(d.totalApprovedQty, 0)} / ${fnum(d.totalTargetQty, 0)} ${T('targetQtyShort')}</div>`;
+    // Staff view: the % is own approved qty / TEAM target, so label it to avoid
+    // confusion with the fair-share chart (which is capped at 100%).
+    if (SESSION.role === 'Staff') {
+      qtyHtml += `<div style="font-size:11.5px;margin-top:2px;opacity:.8">ⓘ ${T('teamTargetShareNote')}</div>`;
+    }
   }
 
   // Card labels say "(MTD)" only in "This Month" mode - showing that
