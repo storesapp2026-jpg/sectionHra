@@ -518,6 +518,7 @@ function logout() {
   const tok = SESSION && SESSION.token;
   SESSION = null; DEPTS = []; MASTER = null; CUR_DEPT = ''; UA = []; KS = { wfs: [], val: null }; AUD = []; AP = { tab: 'score', score: [] };
   sessionStorage.removeItem(SESSION_KEY);
+  try { sessionStorage.removeItem('kpi_session'); sessionStorage.removeItem('kpi_masters'); sessionStorage.removeItem('kpi_dash'); } catch (e) {}   // same login as the main app - clear it there too
   $('app').hidden = true; $('loginScreen').hidden = false;
   $('loginPassword').value = '';
   if (tok) { fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'logout', params: { token: tok } }) }).catch(() => {}); }
