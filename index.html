@@ -891,7 +891,7 @@ main.content{
 
         <div class="card">
           <div class="form-row">
-            <div><label for="hrSection">Section <span style="color:#c62828">*</span></label><select id="hrSection" onchange="hrSectionChanged()"></select></div>
+            <div><label for="hrSection">Section (inside your department) <span style="color:#c62828">*</span></label><select id="hrSection" onchange="hrSectionChanged()"></select></div>
             <div><label for="hrPeriod" data-i18n="periodLabel">Period Label</label><input type="text" id="hrPeriod" placeholder="e.g. Jul-2026"></div>
             <div><label for="hrFrom" data-i18n="from">From</label><input type="date" id="hrFrom"></div>
             <div><label for="hrTo" data-i18n="to">To</label><input type="date" id="hrTo"></div>
@@ -2644,8 +2644,8 @@ async function enterApp() {
     if (_me && _me['Section']) document.getElementById('whoLabel').textContent = SESSION.staffName + ' · ' + SESSION.role + ' · ' + _me['Section'];
   } catch (e) {}
   buildNav();
-  document.getElementById('regDate').valueAsDate = new Date();
-  document.getElementById('attDate').valueAsDate = new Date();
+  document.getElementById('regDate').value = localDateStr(new Date());
+  document.getElementById('attDate').value = localDateStr(new Date());
   initNotifications();
   startIdleWatch();
 }
@@ -4797,9 +4797,10 @@ function initHrAppraisal() {
     hrInited = true;
     document.getElementById('hrPeriod').value = defaultPeriodLabel();
     const now = new Date();
-    document.getElementById('hrFrom').valueAsDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    document.getElementById('hrTo').valueAsDate = now;
-    document.getElementById('dmMemoDate').valueAsDate = now;
+    // FIX (Nov 2026): valueAsDate reads UTC, so in IST local midnight became the PREVIOUS day (From showed 31-10 for Nov).
+    document.getElementById('hrFrom').value = localDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+    document.getElementById('hrTo').value = localDateStr(now);
+    document.getElementById('dmMemoDate').value = localDateStr(now);
 
     hrFillSectionDropdown();
     hrFillStaffDropdowns();
@@ -4818,7 +4819,7 @@ function initHrAppraisal() {
     document.getElementById('trTraining').innerHTML = (MASTERS.trainingMaster || [])
       .map(t => `<option value="${escapeHtml(t['Training ID'])}">${escapeHtml(t['Training Name'])} (${escapeHtml(t['Training ID'])})</option>`).join('')
       || `<option value="">${T('noActiveTrainings')}</option>`;
-    document.getElementById('trDate').valueAsDate = now;
+    document.getElementById('trDate').value = localDateStr(now);
   }
   if (hrNeedSection(true)) runFullAppraisal();
 }
@@ -6453,8 +6454,8 @@ function populateReportFilterDropdowns() {
 function loadReportsView() {
   if (!document.getElementById('repFrom').value) {
     const d = new Date();
-    document.getElementById('repTo').valueAsDate = d;
-    document.getElementById('repFrom').valueAsDate = new Date(d.getFullYear(), d.getMonth(), 1);
+    document.getElementById('repTo').value = localDateStr(d);
+    document.getElementById('repFrom').value = localDateStr(new Date(d.getFullYear(), d.getMonth(), 1));
   }
   if (!document.getElementById('repFromMonth').value) {
     const d = new Date(), ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
