@@ -158,6 +158,24 @@ a{color:var(--coffee-700);}
       <section id="page-bulk" hidden>
         <h2>Bulk Upload</h2>
         <p class="lead">Upload many Sections, Staff, Activities or Workflows into the <b>selected department</b>. Order matters: Sections → Staff → Activities → Workflows. First click <b>Check File</b> (nothing is saved), fix any errors, then <b>Save</b>. Existing rows are skipped.</p>
+        <div class="panel" id="bwPanel">
+          <h3 style="font-size:15px;margin:0 0 6px;">Excel workbook - all 4 sheets in one file</h3>
+          <p style="font-size:13px;margin:0 0 8px;">One <b>.xlsx</b> file with sheets named <b>Sections</b>, <b>Staff</b>, <b>Activities</b>, <b>Workflows</b>. Sheets are checked and saved in this order automatically. Use <b>Check All</b> first (nothing is saved), then <b>Save All</b>. Existing rows are skipped, so it is safe to upload the same file again after fixing errors. Max 500 rows per sheet.</p>
+          <div class="toolbar">
+            <select id="bwDept" title="Department"></select>
+            <button class="btn btn-ghost" id="bwTpl">Download Excel template (.xlsx)</button>
+            <input type="file" id="bwFile" accept=".xlsx">
+          </div>
+          <p id="bwFound" style="font-size:13px;"></p>
+          <div class="toolbar" style="margin-top:6px;">
+            <button class="btn btn-ghost" id="bwCheck" disabled>Check All</button>
+            <button class="btn btn-primary" id="bwSave" disabled>Save All</button>
+          </div>
+          <h3 id="bwSummary" style="font-size:14px;margin:10px 0 4px;"></h3>
+          <div id="bwWarn" style="color:#8a6d1d;font-size:13px;"></div>
+          <div id="bwResult"></div>
+        </div>
+        <h3 style="font-size:15px;margin:18px 0 6px;">One kind at a time (CSV / paste)</h3>
         <div class="panel">
           <div class="toolbar">
             <select id="buDept" title="Department"></select>
@@ -1879,6 +1897,7 @@ const BU_COLUMNS = {
 };
 let BU_OK = false;
 function buInit() {
+  fillDeptSelect($('bwDept'));
   fillDeptSelect($('buDept'));
   buKindChanged();
 }
@@ -1940,6 +1959,149 @@ $('buFile').onchange = function () {
   const rd = new FileReader();
   rd.onload = () => { $('buText').value = rd.result; BU_OK = false; $('buSave').disabled = true; };
   rd.readAsText(f);
+};
+
+/* ---------------- Bulk Upload: one Excel workbook, 4 sheets (Nov 2026) ---------------- */
+const BW_SHEETS = [
+  { kind: 'Section',  label: 'Sections',   names: ['sections', 'section'] },
+  { kind: 'Staff',    label: 'Staff',      names: ['staff'] },
+  { kind: 'Activity', label: 'Activities', names: ['activities', 'activity'] },
+  { kind: 'Workflow', label: 'Workflows',  names: ['workflows', 'workflow'] }
+];
+const BW_XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const BW_XLSX_SRI = 'sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';
+let BW_XLSX_P = null, BW = { rows: null, ok: false };
+function bwLoadXlsx() {
+  if (window.XLSX) return Promise.resolve();
+  if (!BW_XLSX_P) {
+    const attempt = function (sri) {
+      return new Promise(function (res, rej) {
+        const sc = document.createElement('script');
+        sc.src = BW_XLSX_URL;
+        if (sri) { sc.integrity = BW_XLSX_SRI; sc.crossOrigin = 'anonymous'; }
+        sc.onload = res; sc.onerror = function () { sc.remove(); rej(new Error('Excel library could not be loaded')); };
+        document.head.appendChild(sc);
+      });
+    };
+    BW_XLSX_P = attempt(true).catch(function () { return attempt(false); }).catch(function (e) { BW_XLSX_P = null; throw e; });
+  }
+  return BW_XLSX_P;
+}
+function bwNorm(k) { return String(k == null ? '' : k).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+function bwCell(row, names) {
+  const m = {}; Object.keys(row || {}).forEach(function (k) { m[bwNorm(k)] = row[k]; });
+  for (let i = 0; i < names.length; i++) { const v = m[bwNorm(names[i])]; if (v !== undefined && String(v).trim() !== '') return String(v).trim(); }
+  return '';
+}
+function bwReset() {
+  BW.ok = false; $('bwSave').disabled = true; $('bwSummary').textContent = ''; $('bwWarn').innerHTML = ''; $('bwResult').innerHTML = '';
+}
+function bwSheetRows(ws) {
+  const a = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd', defval: '', blankrows: false });
+  if (a.length < 2) return [];
+  const heads = a[0].map(function (h) { return String(h).trim(); });
+  return a.slice(1).filter(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); }).map(function (r) {
+    const o = {}; heads.forEach(function (h, i) { if (h) o[h] = r[i] == null ? '' : String(r[i]).trim(); }); return o;
+  });
+}
+async function bwReadFile(file) {
+  bwReset(); BW.rows = null; $('bwCheck').disabled = true; $('bwFound').textContent = '';
+  if (!file) return;
+  try {
+    await bwLoadXlsx();
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const found = {}, notes = [];
+    wb.SheetNames.forEach(function (n) {
+      const def = BW_SHEETS.find(function (d) { return d.names.indexOf(n.trim().toLowerCase()) !== -1; });
+      if (def) found[def.kind] = bwSheetRows(wb.Sheets[n]);
+      else notes.push('"' + n + '" ignored (not one of Sections / Staff / Activities / Workflows)');
+    });
+    BW.rows = found;
+    const parts = BW_SHEETS.map(function (d) { return d.label + ': ' + (found[d.kind] ? found[d.kind].length + ' row(s)' : 'sheet not found'); });
+    const over = BW_SHEETS.filter(function (d) { return found[d.kind] && found[d.kind].length > 500; });
+    $('bwFound').innerHTML = esc(parts.join('  |  ')) + (notes.length ? '<br><span style="color:#8a6d1d">' + notes.map(esc).join('<br>') + '</span>' : '') +
+      (over.length ? '<br><span style="color:#c62828">More than 500 rows in: ' + over.map(function (d) { return esc(d.label); }).join(', ') + ' - split the sheet.</span>' : '');
+    const total = BW_SHEETS.reduce(function (n, d) { return n + (found[d.kind] ? found[d.kind].length : 0); }, 0);
+    $('bwCheck').disabled = !total || over.length > 0;
+  } catch (e) { toast(e.message, true); }
+}
+// A dependent row (Staff -> Section, Workflow -> Activity / Section) cannot find something that this same workbook
+// is about to create. That is not an error: it is checked again for real when the earlier sheet has been saved.
+function bwWaitRule(kind, msg, secSet, actSet) {
+  let m;
+  if (kind === 'Staff' && (m = msg.match(/^Unknown Section "(.+)" - upload/))) return secSet[m[1].toLowerCase()];
+  if (kind === 'Workflow') {
+    if ((m = msg.match(/^Activity "(.+)" not found/))) return actSet[m[1].toLowerCase()];
+    if ((m = msg.match(/^Unknown Section: (.+?)\. Add it/))) return secSet[m[1].toLowerCase()];
+  }
+  return false;
+}
+async function bwRun(commit) {
+  const dept = $('bwDept').value;
+  if (!dept) { toast('Select a department', true); return; }
+  if (!BW.rows) { toast('Choose the Excel file first', true); return; }
+  const dn = (DEPTS.find(function (d) { return d.deptId === dept; }) || {}).name || dept;
+  const counts = BW_SHEETS.map(function (d) { return d.label + ' ' + (BW.rows[d.kind] ? BW.rows[d.kind].length : 0); }).join(', ');
+  if (commit && !confirm('Save to ' + dn + ' (' + dept + ')?\n' + counts + '\nSheets are saved in order. Existing rows are skipped.')) return;
+  $('bwCheck').disabled = $('bwSave').disabled = true;
+  const secSet = {}, actSet = {};
+  (BW.rows.Section || []).forEach(function (r) { const v = bwCell(r, ['Section Name', 'Section', 'Department']); if (v) secSet[v.toLowerCase()] = true; });
+  (BW.rows.Activity || []).forEach(function (r) {
+    const c = bwCell(r, ['Activity Code', 'Code']), n = bwCell(r, ['Activity Name', 'Activity']);
+    if (c) actSet[c.toLowerCase()] = true; if (n) actSet[n.toLowerCase()] = true;
+  });
+  const col = { OK: '#2e7d32', SKIP: '#777', ERROR: '#c62828', WAIT: '#8a6d1d' };
+  let html = '', hard = 0, okN = 0, stopped = false; const warns = [];
+  try {
+    for (let k = 0; k < BW_SHEETS.length && !stopped; k++) {
+      const d = BW_SHEETS[k], rows = BW.rows[d.kind];
+      if (!rows || !rows.length) continue;
+      let r;
+      try { r = await hr1('bulkUploadMasters', { kind: d.kind, rows: rows, commit: commit }, dept); }
+      catch (e) {
+        if (commit && /every row already exists/i.test(e.message)) { html += '<h4>' + esc(d.label) + ': nothing new (all rows already exist)</h4>'; continue; }
+        html += '<h4 style="color:#c62828">' + esc(d.label) + ': ' + (commit ? 'STOPPED - ' : '') + esc(e.message) + '</h4>';
+        if (commit) html += '<p style="font-size:13px">Sheets before this one were saved. Fix the file and run Check All again - rows already saved are skipped.</p>';
+        hard++; stopped = true; break;
+      }
+      const res = r.results.map(function (x) {
+        return (!commit && x.status === 'ERROR' && bwWaitRule(d.kind, x.message, secSet, actSet))
+          ? { line: x.line, status: 'WAIT', message: x.message + ' (will be checked after the earlier sheet is saved)' } : x;
+      });
+      const c = { OK: 0, SKIP: 0, ERROR: 0, WAIT: 0 }; res.forEach(function (x) { c[x.status] = (c[x.status] || 0) + 1; });
+      hard += c.ERROR; okN += c.OK + c.WAIT;
+      (r.warnings || []).forEach(function (w) { warns.push(d.label + ': ' + w); });
+      html += '<h4 style="margin:12px 0 4px">' + esc(d.label) + ' - ' + (r.committed ? 'SAVED: ' : '') + c.OK + ' to create, ' + c.SKIP + ' exist (skipped), ' +
+        c.WAIT + ' waiting for earlier sheet, ' + c.ERROR + ' error(s), of ' + rows.length + '</h4>' +
+        '<div class="tablewrap"><table><thead><tr><th>Line</th><th>Result</th><th>Details</th></tr></thead><tbody>' +
+        res.map(function (x) { return '<tr><td>' + esc(x.line) + '</td><td style="color:' + (col[x.status] || '#333') + ';font-weight:600">' + esc(x.status) + '</td><td>' + esc(x.message) + '</td></tr>'; }).join('') +
+        '</tbody></table></div>';
+    }
+  } finally {
+    $('bwResult').innerHTML = html;
+    $('bwWarn').innerHTML = warns.map(esc).join('<br>');
+    $('bwSummary').textContent = commit ? (hard ? 'Saving stopped - see below' : 'SAVED to ' + dn + '. Master data updated.') : (hard ? hard + ' error(s) - fix the Excel file and Check All again' : 'Check passed for ' + dn + ' - you can Save All');
+    if (commit && !hard) { toast('Saved to ' + dn); BW.ok = false; }
+    else BW.ok = !commit && !hard && okN > 0;
+    $('bwCheck').disabled = false; $('bwSave').disabled = !BW.ok;
+  }
+}
+$('bwDept').onchange = bwReset;
+$('bwFile').onchange = function () { bwReadFile(this.files && this.files[0]); };
+$('bwCheck').onclick = function () { bwRun(false); };
+$('bwSave').onclick = function () { bwRun(true); };
+$('bwTpl').onclick = async function () {
+  try {
+    await bwLoadXlsx();
+    const wb = XLSX.utils.book_new();
+    BW_SHEETS.forEach(function (d) {
+      const b = BU_COLUMNS[d.kind];
+      const ws = XLSX.utils.aoa_to_sheet([b.cols].concat(b.sample));
+      ws['!cols'] = b.cols.map(function (c) { return { wch: Math.max(14, c.length + 4) }; });
+      XLSX.utils.book_append_sheet(wb, ws, d.label);
+    });
+    XLSX.writeFile(wb, 'hr1-bulk-upload-template.xlsx');
+  } catch (e) { toast(e.message, true); }
 };
 
 /* restore a saved session after a page reload */
