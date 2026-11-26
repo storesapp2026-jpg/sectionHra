@@ -1854,7 +1854,8 @@ const I18N = {
   colAssignedWf: { en: "Own Workflows", ta: "சொந்த Workflow-கள்" },
   colAssignedWeightage: { en: "Own Weightage (Max Possible)", ta: "சொந்த Weightage (அதிகபட்சம்)" },
   colAssignedEarned: { en: "Own Earned KPI", ta: "சொந்த பெற்ற KPI" },
-  colAssignedPct: { en: "Own Achievement % (Earned / Possible)", ta: "சொந்த சாதனை % (பெற்றது / சாத்தியம்)" },
+  colAssignedPct: { en: "Own Index % (Earned / Own Weightage)", ta: "சொந்த Index % (பெற்றது / சொந்த Weightage)" },
+  colOwnRating: { en: "Rating (Own Responsibility)", ta: "மதிப்பீடு (சொந்தப் பொறுப்பு)" },
   repActivityPerf: { en: "📈 Activity Performance", ta: "📈 செயல்பாடு செயல்திறன்" },
   repActivityStaffPerf: { en: "📈 Activity - Staff Performance", ta: "📈 செயல்பாடு - பணியாளர் செயல்திறன்" },
   repStaffComparison: { en: "🏆 Staff Comparison", ta: "🏆 பணியாளர் ஒப்பீடு" },
@@ -6219,10 +6220,11 @@ const REPORT_DEFS = {
       { key: 'section', labelKey: 'section' }, { key: 'designation', labelKey: 'colDesignation' },
       { key: 'assignedWorkflows', labelKey: 'colAssignedWf', fmt: 'num' }, { key: 'assignedWeightage', labelKey: 'colAssignedWeightage', fmt: 'num' },
       { key: 'assignedEarned', labelKey: 'colAssignedEarned', fmt: 'num' }, { key: 'assignedPct', labelKey: 'colAssignedPct', fmt: 'pct' },
+      { key: 'ownRating', labelKey: 'colOwnRating', fmt: 'ownRating' },
       { key: 'monthlyTarget', labelKey: 'colParticipatedTarget', fmt: 'num' }, { key: 'approvedActual', labelKey: 'colApprovedActual', fmt: 'num' },
       { key: 'balance', labelKey: 'colBalance', fmt: 'num' }, { key: 'achievementPct', labelKey: 'colAchievementPct', fmt: 'pct' },
       { key: 'kpiScore', labelKey: 'colKpiScore', fmt: 'num' }, { key: 'maxScore', labelKey: 'colMaxScore', fmt: 'num' },
-      { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating', fmt: 'scoreRating', scoreKey: 'kpiScore', maxKey: 'maxScore' }
+      { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }
     ], totals: ['assignedWeightage', 'assignedEarned', 'kpiScore', 'maxScore']
   },
   activityPerf: {
@@ -6481,6 +6483,7 @@ function repFmt(val, fmt, row, col) {
   if (fmt === 'date') { const d = new Date(val); return isNaN(d) ? '' : escapeHtml(d.toLocaleDateString()); }
   if (fmt === 'badge') return `<span class="badge ${safeStatusClass(val)}">${escapeHtml(val)}</span>`;
   if (fmt === 'scoreRating') return repScoreRating(val, row, col);
+  if (fmt === 'ownRating') return repOwnRating(row);
   return escapeHtml(val);
 }
 
@@ -6536,6 +6539,19 @@ function repFairShareInfo_(row, col) {
     rating = floorBand.rating; floorApplied = true;
   }
   return { earned: r2(earned), total: r2(total), share: r2(share), fair: r2(fair), idx: r2(idx), rating, ach: r2(ach), floorApplied };
+}
+/* OWN RATING (Nov 2026): rating on responsibility vs achievement - Earned / Own Weightage. */
+function repOwnRatingText(row) {
+  if (!row || row.assignedPct === null || row.assignedPct === undefined) return 'Not Set';
+  return row.assignedEarned + ' / ' + row.assignedWeightage + ' = ' + row.assignedPct + '% - ' + row.ownRating;
+}
+function repOwnRating(row) {
+  if (!row || row.assignedPct === null || row.assignedPct === undefined) return escapeHtml(T('repNotSet'));
+  const pct = Math.max(0, Math.min(100, Number(row.assignedPct) || 0));
+  return `<div class="rt-cell" title="${escapeHtml(repOwnRatingText(row))}">
+    <div class="rt-top"><span class="rt-score">${escapeHtml(row.assignedEarned)}<span class="rt-of"> / ${escapeHtml(row.assignedWeightage)}</span><span class="rt-pct">${escapeHtml(row.assignedPct)}%</span></span><span class="badge ${safeStatusClass(row.ownRating)}">${escapeHtml(row.ownRating)}</span></div>
+    <div class="rt-bar"><i class="rt-${safeStatusClass(row.ownRating)}" style="width:${pct}%"></i></div>
+  </div>`;
 }
 function repScoreRating(val, row, col) {
   const fallback = `<span class="badge ${safeStatusClass(val)}">${escapeHtml(val)}</span>`;
@@ -6815,7 +6831,7 @@ function exportReportCsv() {
   const headers = lastReportColumns.map(c => T(c.labelKey));
   const csvEsc = (v) => { let s = (v === null || v === undefined) ? '' : String(v); if (/^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = "'" + s; /* spreadsheet formula-injection guard */ return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const lines = [headers.map(csvEsc).join(',')];
-  lastReportRows.forEach(r => { lines.push(lastReportColumns.map(c => csvEsc(c.fmt === 'scoreRating' ? repScoreRatingText(r[c.key], r, c) : repStripTags(repFmt(r[c.key], c.fmt)))).join(',')); });
+  lastReportRows.forEach(r => { lines.push(lastReportColumns.map(c => csvEsc(c.fmt === 'ownRating' ? repOwnRatingText(r) : c.fmt === 'scoreRating' ? repScoreRatingText(r[c.key], r, c) : repStripTags(repFmt(r[c.key], c.fmt)))).join(',')); });
   const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -6830,7 +6846,7 @@ function printReport() {
   const w = window.open('', '_blank');
   const title = T(REPORT_DEFS[currentReportId].labelKey);
   const headHtml = lastReportColumns.map(c => `<th>${T(c.labelKey)}</th>`).join('');
-  const bodyHtml = lastReportRows.map(r => '<tr>' + lastReportColumns.map(c => `<td>${c.fmt === 'scoreRating' ? repFmt(r[c.key], c.fmt, r, c) : repStripTags(repFmt(r[c.key], c.fmt))}</td>`).join('') + '</tr>').join('');
+  const bodyHtml = lastReportRows.map(r => '<tr>' + lastReportColumns.map(c => `<td>${(c.fmt === 'scoreRating' || c.fmt === 'ownRating') ? repFmt(r[c.key], c.fmt, r, c) : repStripTags(repFmt(r[c.key], c.fmt))}</td>`).join('') + '</tr>').join('');
   // Letterhead (Company/Department + Staff/Section scope + Prepared On) -
   // same lastReportMeta populated by updateReportLetterhead() during
   // runReport(), so the printed copy always matches what's on screen.
