@@ -606,7 +606,7 @@ main.content{
           <div id="wfChecklistWrap" style="display:none;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;">
               <div style="font-size:11.5px;font-weight:600;color:var(--coffee-700);text-transform:uppercase;letter-spacing:.04em;" data-i18n="selectWorkflows">Select Workflows</div>
-              <label id="regShowOthersWrap" style="display:none;align-items:center;gap:6px;font-size:12px;font-weight:400;color:#1F5C99;"><input type="checkbox" id="regShowOthers" onchange="toggleShowOtherWf(this.checked)"> Show workflows assigned to other staff (Cover entry)</label>
+              <label id="regShowOthersWrap" style="display:none;align-items:center;gap:6px;font-size:12px;font-weight:400;color:#1F5C99;"><input type="checkbox" id="regShowOthers" onchange="toggleShowOtherWf(this.checked)"> Show workflows assigned to other staff (Cover entry only)</label>
               <div>
                 <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllWorkflows(true)" data-i18n="selectAll">Select All</button>
                 <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllWorkflows(false)" data-i18n="clearAll">Clear All</button>
@@ -718,8 +718,8 @@ main.content{
             <div><label for="addWfStatus">Status</label><select id="addWfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
           </div>
           <div class="form-row">
-            <div><label for="addWfResp1">Responsible person 1 (Individual workflow only)</label><select id="addWfResp1"></select></div>
-            <div><label for="addWfResp2">Responsible person 2 (optional)</label><select id="addWfResp2"></select></div>
+            <div><label for="addWfResp1">Primary Responsible Staff (Individual workflow only)</label><select id="addWfResp1"></select></div>
+            <div><label for="addWfResp2">Second / Backup Responsible Staff (optional; equal 50% share)</label><select id="addWfResp2"></select></div>
           </div>
           <label style="display:flex;align-items:center;gap:8px;margin:8px 0 4px;font-weight:600;"><input type="checkbox" id="addWfTeam"> Team workflow (Co-Staff basis) <span style="font-weight:400;color:var(--coffee-500);font-size:12px;">— tick if several staff do this job together; the Working Register will then show the Co-Staff checklist and the Weightage / Score is shared equally among them</span></label>
           <label style="display:block;margin:8px 0 4px;">Applicable Section(s) * <span style="font-weight:400;color:var(--coffee-500);font-size:12px;">— only staff of the ticked Section(s) will see this workflow in the Working Register</span></label>
@@ -749,8 +749,8 @@ main.content{
             <div><label for="editWfTeam">Team workflow (Co-Staff basis)</label>
               <select id="editWfTeam"><option value="No">No - Individual</option><option value="Yes">Yes - Team / Co-Staff</option></select>
               <div id="editWfTeamNote" style="font-size:12px;color:var(--coffee-500);margin-top:4px;"></div></div>
-            <div><label for="editWfResp1">Responsible person 1 (Individual workflow only)</label><select id="editWfResp1"></select></div>
-            <div><label for="editWfResp2">Responsible person 2 (optional)</label><select id="editWfResp2"></select>
+            <div><label for="editWfResp1">Primary Responsible Staff (Individual workflow only)</label><select id="editWfResp1"></select></div>
+            <div><label for="editWfResp2">Second / Backup Responsible Staff (optional; equal 50% share)</label><select id="editWfResp2"></select>
               <div style="font-size:12px;color:var(--coffee-500);margin-top:4px;">Only the chosen person(s) can log this workflow. With 2 persons the Target and Weightage are split equally. Leave both blank = anyone.</div></div>
           </div>
           <button class="btn btn-brown" onclick="saveWorkflowEdit()" data-i18n="saveChanges">Save Changes</button>
@@ -3523,8 +3523,9 @@ function renderChecklistRows() {
         ${escapeHtml(w['Workflow Name'])}
       </label>
       <div style="font-size:11.5px;color:var(--coffee-500);margin:2px 0 8px 26px;line-height:1.65;">
-        <div>Staff: <strong style="color:var(--coffee-700);">${escapeHtml(SESSION.staffName)}</strong></div>
-        ${(!isTeam && wfResponsibleIds(w).length) ? `<div>Responsible: <strong style="color:var(--coffee-700);">${escapeHtml(wfResponsibleNames(w))}</strong>${wfResponsibleIds(w).length > 1 ? ' (Target &amp; Weightage shared equally)' : ''}</div>` : ''}
+        <div>Actual Performing / Logged-in Staff: <strong style="color:var(--coffee-700);">${escapeHtml(SESSION.staffName)}</strong> (${escapeHtml(SESSION.staffId)})</div>
+        ${(!isTeam && wfResponsibleIds(w).length) ? `<div>Responsibility Allocation: <strong style="color:var(--coffee-700);">${wfResponsibleIds(w).map((id, idx) => { const st = (MASTERS.staff || []).find(x => String(x['Staff ID']) === id); const nm = st ? st['Staff Name'] : id; const pct = Math.round((100 / wfResponsibleIds(w).length) * 100) / 100; return (wfResponsibleIds(w).length === 1 ? 'Primary: ' : (idx === 0 ? 'Primary: ' : 'Second / Backup: ')) + escapeHtml(nm) + ' (' + pct + '%)'; }).join(' &nbsp;|&nbsp; ')}</strong></div>` : ''}
+        <div>Entry Type: <strong style="color:var(--coffee-700);">${isStaffCover ? 'Cover Entry — Manager approval required' : (wfResponsibleIds(w).indexOf(String(SESSION.staffId)) !== -1 ? 'Normal Responsibility Entry' : (wfResponsibleIds(w).length ? (isManager ? 'Manager Entry' : 'Normal Entry') : 'Normal Entry'))}</strong></div>
         <div>Unit: <strong style="color:var(--coffee-700);">${escapeHtml(w['Unit'])}</strong></div>
         <div>Monthly Target: <strong style="color:var(--coffee-700);">${target.value}</strong> ${target.source === 'monthly' ? '(this month\'s target)' : '(default target — no monthly target set)'}</div>
         <div>Completed This Month: <strong style="color:var(--coffee-700);">${target.completed}</strong></div>
@@ -4442,7 +4443,7 @@ async function saveAddWorkflow() {
   const all = document.getElementById('addWfSecAll') && document.getElementById('addWfSecAll').checked;
   const picked = [...document.querySelectorAll('#addWfSections .addWfSecChk:checked')].map(cb => cb.value);
   if (!all && !picked.length) { toast('Select at least one Section (or All Sections)'); return; }
-  if (document.getElementById('addWfResp1').value && document.getElementById('addWfResp1').value === document.getElementById('addWfResp2').value) { toast('Responsible person 1 and 2 must be different'); return; }
+  if (document.getElementById('addWfResp1').value && document.getElementById('addWfResp1').value === document.getElementById('addWfResp2').value) { toast('Primary and Second / Backup Responsible Staff must be different'); return; }
   if (btn) btn.disabled = true;
   try {
     await callApi('addWorkflow', {
@@ -4508,7 +4509,7 @@ async function saveWorkflowEdit() {
     'Team Workflow': document.getElementById('editWfTeam').value,
     'Responsible Staff IDs': readResponsibleSelects('editWfResp1', 'editWfResp2')
   };
-  if (document.getElementById('editWfResp1').value && document.getElementById('editWfResp1').value === document.getElementById('editWfResp2').value) { toast('Responsible person 1 and 2 must be different'); return; }
+  if (document.getElementById('editWfResp1').value && document.getElementById('editWfResp1').value === document.getElementById('editWfResp2').value) { toast('Primary and Second / Backup Responsible Staff must be different'); return; }
   try {
     await callApi('updateWorkflow', { actorRole: SESSION.role, actorUserId: SESSION.userId, workflowId, fields });
     toast(T('saveChanges'));
