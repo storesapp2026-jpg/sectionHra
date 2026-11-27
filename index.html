@@ -138,6 +138,11 @@ tr:hover td{background:#FFFBF3;}
 .badge.Submitted{background:#FCEBC9; color:var(--warn);}
 .badge.Approved{background:#E1EBD9; color:var(--ok);}
 .badge.Rejected{background:#F5DAD5; color:var(--danger);}
+.badge.CoverTag{background:#DCEAF7; color:#1F5C99; border:1px solid #9FC1E3;}
+.cover-note{font-size:12px; line-height:1.55; color:#1F4E7A; background:#EEF5FC; border:1px solid #CFE0F2; border-radius:8px; padding:7px 10px; margin-bottom:6px;}
+.cover-card .cover-meta{display:grid; grid-template-columns:1fr 1fr; gap:4px 14px; font-size:12.5px; color:var(--coffee-600); line-height:1.6;}
+.cover-card pre.cover-hist{white-space:pre-wrap; font-size:11.5px; background:#FAF4EA; border-radius:6px; padding:8px; margin-top:6px;}
+@media (max-width:640px){ .cover-card .cover-meta{grid-template-columns:1fr;} }
 .badge.warn{background:#FCEBC9; color:var(--warn);}
 
 .btn{padding:8px 14px; border-radius:7px; font-size:12.5px; font-weight:600;}
@@ -601,6 +606,7 @@ main.content{
           <div id="wfChecklistWrap" style="display:none;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;">
               <div style="font-size:11.5px;font-weight:600;color:var(--coffee-700);text-transform:uppercase;letter-spacing:.04em;" data-i18n="selectWorkflows">Select Workflows</div>
+              <label id="regShowOthersWrap" style="display:none;align-items:center;gap:6px;font-size:12px;font-weight:400;color:#1F5C99;"><input type="checkbox" id="regShowOthers" onchange="toggleShowOtherWf(this.checked)"> Show workflows assigned to other staff (Cover entry)</label>
               <div>
                 <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllWorkflows(true)" data-i18n="selectAll">Select All</button>
                 <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllWorkflows(false)" data-i18n="clearAll">Clear All</button>
@@ -686,6 +692,7 @@ main.content{
         <div style="margin-bottom:14px;">
           <button class="btn btn-brown btn-sm" id="apTabSubmitted" onclick="setApprovalsTab('Submitted')" data-i18n="submittedEntries">Submitted Entries</button>
           <button class="btn btn-outline btn-sm" id="apTabDraft" onclick="setApprovalsTab('Draft')" data-i18n="draftEntries">Draft Entries</button>
+          <button class="btn btn-outline btn-sm" id="apTabCover" onclick="setApprovalsTab('Cover')">🔁 Cover Approvals <span id="apCoverCount"></span></button>
         </div>
         <div id="approvalsList"></div>
       </section>
@@ -1412,7 +1419,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbwJHHaXRp3-_BpwhaRZFsAs1J1ML7JqpeSS9R65CUJzqohuCcPPHE1Ji91inIQYvtNW/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw_mK87GjxuW0P_rBVftYcdnUo7R84ygDKsecsI3Id1gTuhpPdLrmXM9VE0H1G1r-mu8w/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -2978,6 +2985,7 @@ document.addEventListener('click', (e) => {
     case 'deleteDraft': deleteDraft(id); break;
     case 'decideApprovalLines': decideApprovalLines(id, decision, btn); break;
     case 'decideApprovalGroup': decideApprovalGroup(id, decision, btn); break;
+    case 'decideCoverLine': decideCoverLine(id, decision, btn); break;
     case 'openWorkflowEdit': openWorkflowEdit(id); break;
     case 'laCreate': openLoginCreate(id); break;
     case 'laReset': resetLoginPw(id); break;
@@ -3432,10 +3440,16 @@ function renderWorkflowChecklist() {
         && workflowAppliesToSection(w, mySection)
         // RESPONSIBLE PERSON(S): Staff see an individual workflow only if it is theirs (or has no
         // fixed person). A Manager still sees it, to credit the right person.
-        && (SESSION.role === 'Manager' || wfIsTeam(w) || !wfResponsibleIds(w).length || wfResponsibleIds(w).indexOf(String(SESSION.staffId)) !== -1))
+        && (SESSION.role === 'Manager' || wfIsTeam(w) || !wfResponsibleIds(w).length || wfResponsibleIds(w).indexOf(String(SESSION.staffId)) !== -1
+            // STAFF COVER ENTRY (Nov 2026): with the toggle ON a Staff user also sees other staff's individual workflows - ticking one makes it a
+            // Cover entry that waits for MANAGER approval. The server re-validates everything (responsible person, performer, reason, role).
+            || (STAFF_COVER_UI_ENABLED && SESSION.role === 'Staff' && REG_SHOW_OTHERS_WF)))
     : [];
   renderChecklistRows();
 }
+const STAFF_COVER_UI_ENABLED = true; // keep in step with STAFF_COVER_POLICY.ENABLED in Code.gs (the server decides; this only shows/hides the UI)
+let REG_SHOW_OTHERS_WF = false;
+function toggleShowOtherWf(on) { REG_SHOW_OTHERS_WF = !!on; renderWorkflowChecklist(); }
 
 // Shows/hides the Count/Unit/Remarks box (and, for a team workflow, the
 // Co-Staff checklist; for an individual workflow shown to a Manager, the
@@ -3463,6 +3477,7 @@ function toggleCoverEntry(wfId) {
   const on = !!row.querySelector('.reg-cover-chk').checked;
   const box = row.querySelector('.reg-cover-box'); if (box) box.style.display = on ? 'grid' : 'none';
   const sel = row.querySelector('.reg-assign-staff');
+  if (!sel) return; // Staff cover rows have no "Assign KPI credit to" list - the cover block is always on
   const w = (CURRENT_ACTIVITY_WFS || []).find(x => x['Workflow ID'] === wfId);
   const ids = wfResponsibleIds(w);
   const keep = sel.value;
@@ -3492,6 +3507,7 @@ function renderChecklistRows() {
   const mySection = getSessionSectionId();
   const coStaffOptions = MASTERS.staff.filter(s => s['Staff ID'] !== SESSION.staffId && s['Status'] !== 'Inactive' && s['Section'] === mySection);
   const isManager = SESSION.role === 'Manager';
+  { const _w = document.getElementById('regShowOthersWrap'); if (_w) { _w.style.display = (STAFF_COVER_UI_ENABLED && SESSION.role === 'Staff') ? 'flex' : 'none'; const _c = document.getElementById('regShowOthers'); if (_c) _c.checked = REG_SHOW_OTHERS_WF; } }
 
   const loggedByLine = document.getElementById('regLoggedByLine');
   if (loggedByLine) loggedByLine.innerHTML = 'Logged By: <strong style="color:var(--coffee-700);">' + escapeHtml(SESSION.staffName) + '</strong> (' + escapeHtml(SESSION.staffId) + ')';
@@ -3499,6 +3515,7 @@ function renderChecklistRows() {
   list.innerHTML = wfs.map(w => {
     const isTeam = TEAM_WORKFLOW_IDS.indexOf(w['Workflow ID']) !== -1;
     const target = getEffectiveTargetDisplay(CURRENT_ACTIVITY_ID, w);
+    const isStaffCover = !isManager && !isTeam && wfResponsibleIds(w).length > 0 && wfResponsibleIds(w).indexOf(String(SESSION.staffId)) === -1;
     return `
     <div class="wf-row" data-wfid="${escapeHtml(w['Workflow ID'])}">
       <label class="wf-label">
@@ -3534,7 +3551,15 @@ function renderChecklistRows() {
           <div><label style="font-size:11.5px;font-weight:600;">On behalf of (Responsible person)</label><select class="reg-cover-for">${wfResponsibleIds(w).map(id => { const st = MASTERS.staff.find(x => String(x['Staff ID']) === id); return `<option value="${escapeHtml(id)}">${escapeHtml(st ? st['Staff Name'] : id)}</option>`; }).join('')}</select></div>
           <div><label style="font-size:11.5px;font-weight:600;">Reason (required)</label><input type="text" class="reg-cover-reason" placeholder="e.g. Raja on leave"></div>
         </div>` : ''}
-      </div>` : '')}
+      </div>` : (isStaffCover ? `
+      <div class="reg-assign-wrap" style="display:none;margin:6px 0 10px 25px;">
+        <div class="cover-note">🔁 This workflow is assigned to <b>${escapeHtml(wfResponsibleNames(w))}</b>. Your entry is saved as a <b>Cover entry</b> (status <b>PENDING_COVER_APPROVAL</b>) and counts for your KPI <b>only after the Manager approves</b>. The responsible person's target is not changed.</div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;"><input type="checkbox" class="reg-cover-chk" checked onclick="return false"> Cover entry - I did this work (Manager approval needed)</label>
+        <div class="reg-cover-box" style="display:grid;margin-top:6px;gap:8px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+          <div><label style="font-size:11.5px;font-weight:600;">On behalf of (Responsible person)</label><select class="reg-cover-for">${wfResponsibleIds(w).map(id => { const st = MASTERS.staff.find(x => String(x['Staff ID']) === id); return `<option value="${escapeHtml(id)}">${escapeHtml(st ? st['Staff Name'] : id)}</option>`; }).join('')}</select></div>
+          <div><label style="font-size:11.5px;font-weight:600;">Reason / work details (required)</label><input type="text" class="reg-cover-reason" placeholder="e.g. Raja on leave - I prepared the report"></div>
+        </div>
+      </div>` : ''))}
     </div>`;
   }).join('') || `<p class="empty">${T('noWorkflowsFound')}</p>`;
   wrap.style.display = wfs.length ? 'block' : 'none';
@@ -3574,6 +3599,12 @@ async function saveWorkingEntries(mode) {
     });
   });
   if (lines.length === 0) { toast(T('tickWorkflow')); return; }
+  { // COVER entries: a clear reason is mandatory (the server re-checks); Staff cover lines also wait for Manager approval
+    const badCover = lines.filter(l => l.coverForStaffId && String(l.coverReason || '').trim().length < (SESSION.role === 'Staff' ? 5 : 1)).map(l => {
+      const wf = MASTERS.workflows.find(w => w['Workflow ID'] === l.workflowId); return wf ? wf['Workflow Name'] : l.workflowId; });
+    if (badCover.length) { toast('Cover entry: please enter the reason / work details for ' + badCover.join(', ')); return; }
+  }
+  const _hasStaffCover = SESSION.role === 'Staff' && lines.some(l => l.coverForStaffId);
   const zeroCountWfs = lines.filter(l => Number(l.actual) <= 0).map(l => {
     const wf = MASTERS.workflows.find(w => w['Workflow ID'] === l.workflowId);
     return wf ? wf['Workflow Name'] : l.workflowId;
@@ -3614,7 +3645,7 @@ async function saveWorkingEntries(mode) {
       loadRegister();
       return;
     }
-    toast(mode === 'Submitted' ? T('submittedForApproval') : T('savedAsDraft'));
+    toast(mode === 'Submitted' ? (_hasStaffCover ? 'Cover entry sent - PENDING MANAGER APPROVAL' : T('submittedForApproval')) : T('savedAsDraft'));
     document.getElementById('regActivity').value = '';
     document.getElementById('regRemarks').value = '';
     document.getElementById('wfChecklistWrap').style.display = 'none';
@@ -3631,6 +3662,12 @@ let _regSaveBusy = false;
 // each Line ID standing alone (individual workflows / no Team Ref No).
 // Used by both "My Draft Entries" and the Manager Approval view so both
 // show the same Staff/Co-Staff/Actual/Remarks breakdown per workflow.
+function staffNameById(id) { const s = (MASTERS.staff || []).find(x => String(x['Staff ID']) === String(id)); return s ? s['Staff Name'] : id; }
+// "COVER for Raja - PENDING_COVER_APPROVAL" line shown on cover entries (Draft / Returned / Approvals cards)
+function coverInfoHtml(wg) {
+  if (!wg || !wg.coverForId) return '';
+  return `<div style="margin-top:4px;"><span class="badge CoverTag">🔁 COVER for ${escapeHtml(staffNameById(wg.coverForId))}</span>${wg.coverStatus ? ` <span style="font-size:11px;color:#1F5C99;">${escapeHtml(wg.coverStatus)}</span>` : ''}${wg.coverReason ? `<div style="font-size:12px;color:var(--coffee-600);">Reason: ${escapeHtml(wg.coverReason)}</div>` : ''}</div>`;
+}
 function groupEntryLinesByWorkflow(g) {
   const order = [];
   const map = {};
@@ -3640,7 +3677,8 @@ function groupEntryLinesByWorkflow(g) {
       map[key] = {
         workflowId: r['Workflow ID'], workflowName: r['Workflow Name'],
         actual: r['Actual'], target: r['Target'], remarks: r['Remarks'],
-        status: r['Approval Status'], staffName: '', coStaffNames: [], lineIds: []
+        status: r['Approval Status'], staffName: '', coStaffNames: [], lineIds: [],
+        coverForId: r['Cover For Staff ID'] || '', coverSource: r['Cover Source'] || '', coverStatus: r['Cover Status'] || '', coverReason: r['Cover Reason'] || ''
       };
       order.push(key);
     }
@@ -3692,6 +3730,7 @@ async function loadMyDrafts(preloadedGroups) {
             <div>Staff: <strong>${escapeHtml(wg.staffName)}</strong></div>
             <div>Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}</div>
             <div>Actual: <strong>${wg.actual}</strong>${wg.remarks ? ' &middot; Remarks: ' + escapeHtml(wg.remarks) : ''}</div>
+            ${coverInfoHtml(wg)}
           </div>
         `).join('')}
       </div>
@@ -3891,7 +3930,7 @@ async function loadRegister() {
     <tr>
       <td>${fmtDate(r['Date'])}</td><td>${escapeHtml(r['Activity Name'])}</td><td>${escapeHtml(r['Workflow Name'])}</td><td>${escapeHtml(r['Staff Name'])}</td>
       <td>${coStaffLabel(r)}</td><td>${escapeHtml(r['Target'])}</td><td>${escapeHtml(r['Actual'])}</td><td>${scoreCell}</td>
-      <td><span class="badge ${safeStatusClass(r['Approval Status'])}">${escapeHtml(r['Approval Status'])}</span>${r['Self Approved'] === 'Yes' ? ` <span class="badge SelfApproved" title="Manager approved their own entry">${T('selfApprovedBadge')}</span>` : ''}</td>
+      <td><span class="badge ${safeStatusClass(r['Approval Status'])}">${escapeHtml(r['Approval Status'])}</span>${r['Self Approved'] === 'Yes' ? ` <span class="badge SelfApproved" title="Manager approved their own entry">${T('selfApprovedBadge')}</span>` : ''}${r['Cover For Staff ID'] ? ` <span class="badge CoverTag" title="${escapeHtml(r['Cover Status'] || 'Cover entry')}">🔁 COVER for ${escapeHtml(staffNameById(r['Cover For Staff ID']))}</span>` : ''}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="9" class="empty">${T('noEntriesYet')}</td></tr>`;
 }
@@ -3910,13 +3949,17 @@ function setApprovalsTab(status) {
   APPROVALS_TAB = status;
   const subBtn = document.getElementById('apTabSubmitted');
   const draftBtn = document.getElementById('apTabDraft');
+  const coverBtn = document.getElementById('apTabCover');
   if (subBtn) subBtn.className = 'btn btn-sm ' + (status === 'Submitted' ? 'btn-brown' : 'btn-outline');
   if (draftBtn) draftBtn.className = 'btn btn-sm ' + (status === 'Draft' ? 'btn-brown' : 'btn-outline');
+  if (coverBtn) coverBtn.className = 'btn btn-sm ' + (status === 'Cover' ? 'btn-brown' : 'btn-outline');
   loadApprovals();
 }
 
 async function loadApprovals() {
   const list = document.getElementById('approvalsList');
+  if (APPROVALS_TAB === 'Cover') { loadCoverApprovals(); return; }
+  refreshCoverPendingCount();
   let groups;
   try { groups = await callApi('getEntryGroups', { status: APPROVALS_TAB }); }
   catch (e) { toast(e.message); return; }
@@ -3944,6 +3987,7 @@ function renderApprovalGroupCard(g) {
           Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}<br>
           Actual: <strong>${wg.actual}</strong> &middot; Target: ${wg.target}
           ${wg.remarks ? '<br>Remarks: ' + escapeHtml(wg.remarks) : ''}
+          ${coverInfoHtml(wg)}
         </div>
         ${isSubmitted ? `
         <div style="margin-top:8px;">
@@ -3964,6 +4008,80 @@ function renderApprovalGroupCard(g) {
       <button class="btn btn-danger btn-sm" data-action="deleteDraft" data-id="${escapeHtml(g.groupId)}">${T('deleteBtn')}</button>
     </div>` : ''}
   </div>`;
+}
+
+/* ============================================================
+   COVER APPROVALS (Manager only) - Staff-submitted Cover entries (PENDING_COVER_APPROVAL).
+   Server actions: getPendingCoverEntries {view:'pending'|'all'} and decideCoverEntries {lineIds, decision, reason}.
+   Only a Manager can decide (enforced in Code.gs). Approved => credit goes to the actual performer.
+   ============================================================ */
+let COVER_VIEW = 'pending';
+function setCoverView(v) { COVER_VIEW = v; loadCoverApprovals(); }
+async function refreshCoverPendingCount() {
+  const el = document.getElementById('apCoverCount'); if (!el || !SESSION || SESSION.role !== 'Manager') return;
+  try { const rows = await callApi('getPendingCoverEntries', { view: 'pending' }); el.textContent = rows && rows.length ? '(' + rows.length + ')' : ''; }
+  catch (e) { /* older backend without the action: stay silent */ }
+}
+async function loadCoverApprovals() {
+  const list = document.getElementById('approvalsList');
+  list.innerHTML = '<div class="card"><div class="empty">Loading…</div></div>';
+  let rows;
+  try { rows = await callApi('getPendingCoverEntries', { view: COVER_VIEW }); }
+  catch (e) { toast(e.message); list.innerHTML = ''; return; }
+  rows = rows || [];
+  if (COVER_VIEW === 'pending') { const el = document.getElementById('apCoverCount'); if (el) el.textContent = rows.length ? '(' + rows.length + ')' : ''; }
+  const bar = `<div style="margin-bottom:10px;">
+      <button class="btn btn-sm ${COVER_VIEW === 'pending' ? 'btn-brown' : 'btn-outline'}" onclick="setCoverView('pending')">Pending approval</button>
+      <button class="btn btn-sm ${COVER_VIEW === 'all' ? 'btn-brown' : 'btn-outline'}" onclick="setCoverView('all')">All cover entries (history)</button>
+    </div>
+    <p class="view-sub" style="margin-bottom:10px;">A Cover entry is work done by a staff who is <b>not</b> the responsible person. Only after you <b>Approve</b> does the credit go to the actual performer; the responsible person's target is unchanged.</p>`;
+  if (!rows.length) { list.innerHTML = bar + `<div class="card"><div class="empty">${COVER_VIEW === 'pending' ? 'No Cover entries waiting for approval.' : 'No Cover entries yet.'}</div></div>`; return; }
+  list.innerHTML = bar + rows.map(r => {
+    const pending = r.approvalStatus === 'Submitted';
+    const badge = r.approvalStatus === 'Approved' ? 'Approved' : r.approvalStatus === 'Rejected' ? 'Rejected' : r.approvalStatus === 'Returned' ? 'Returned' : 'Submitted';
+    return `
+  <div class="card cover-card" data-cover-card="${escapeHtml(r.lineId)}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
+      <div><strong>${fmtDate(r.date)}</strong> &middot; ${escapeHtml(r.activityName || '')} &rsaquo; <strong>${escapeHtml(r.workflowName || '')}</strong></div>
+      <span class="badge ${safeStatusClass(badge)}">${escapeHtml(r.coverStatus || r.approvalStatus)}</span>
+    </div>
+    <div class="cover-meta">
+      <div>Responsible person: <strong>${escapeHtml(r.responsiblePersonName)}</strong></div>
+      <div>Actual performer: <strong>${escapeHtml(r.actualPerformerName)}</strong></div>
+      <div>Quantity done: <strong>${escapeHtml(r.quantity)}</strong> ${escapeHtml(r.unit || '')}</div>
+      <div>Responsible person's target: <strong>${escapeHtml(r.target)}</strong></div>
+      <div style="grid-column:1/-1;">Work details: ${r.workDetails ? escapeHtml(r.workDetails) : '—'}</div>
+      <div style="grid-column:1/-1;">Cover reason: ${r.coverReason ? escapeHtml(r.coverReason) : '—'}</div>
+      <div>Submitted by: ${escapeHtml(r.createdByName || r.createdById)}</div>
+      <div>Submitted on: ${r.submittedOn ? escapeHtml(fmtDate(r.submittedOn)) : '—'}</div>
+      ${r.approvedBy ? `<div>Approved by: ${escapeHtml(r.approvedBy)}</div><div>Approved on: ${escapeHtml(fmtDate(r.approvedOn))}</div>` : ''}
+      ${r.rejectedBy ? `<div>${r.approvalStatus === 'Returned' ? 'Returned' : 'Rejected'} by: ${escapeHtml(r.rejectedBy)}</div><div>Reason: ${escapeHtml(r.rejectionReason || '')}</div>` : ''}
+    </div>
+    ${r.problem ? `<div class="cover-note" style="background:#FDF1E3;border-color:#F0D3A8;color:#8A4B08;margin-top:8px;">⚠️ ${escapeHtml(r.problem)} - this entry cannot be approved; Reject or Return it.</div>` : ''}
+    ${r.history ? `<details style="margin-top:6px;"><summary style="font-size:12px;cursor:pointer;color:var(--coffee-600);">Approval history</summary><pre class="cover-hist">${escapeHtml(r.history)}</pre></details>` : ''}
+    ${pending ? `
+    <div style="margin-top:10px;">
+      ${r.canApprove ? `<button class="btn btn-brown btn-sm" data-action="decideCoverLine" data-id="${escapeHtml(r.lineId)}" data-decision="Approved">✅ Approve as Cover</button>` : ''}
+      <button class="btn btn-danger btn-sm" data-action="decideCoverLine" data-id="${escapeHtml(r.lineId)}" data-decision="Rejected">❌ Reject</button>
+      <button class="btn btn-outline btn-sm" data-action="decideCoverLine" data-id="${escapeHtml(r.lineId)}" data-decision="Returned">↩️ Return for correction</button>
+    </div>` : ''}
+  </div>`;
+  }).join('');
+}
+async function decideCoverLine(lineId, decision, btn) {
+  let reason = '';
+  if (decision === 'Approved') { if (!confirm('Approve this Cover entry? The KPI credit goes to the actual performer.')) return; }
+  else {
+    reason = (prompt(decision === 'Rejected' ? 'Reason for rejecting this Cover entry (required):' : 'Reason for returning this Cover entry for correction (required):') || '').trim();
+    if (!reason) { toast('A reason is required.'); return; }
+  }
+  const btns = btn ? btn.parentElement.querySelectorAll('button') : [];
+  btns.forEach(b => b.disabled = true);
+  try {
+    await callApi('decideCoverEntries', { lineIds: [lineId], decision, reason });
+    toast(decision === 'Approved' ? 'Cover entry approved' : decision === 'Returned' ? 'Returned for correction' : 'Cover entry rejected');
+    loadCoverApprovals();
+  } catch (e) { toast(e.message); btns.forEach(b => b.disabled = false); }
 }
 
 // Decides one job's Line ID(s) (a solo entry = 1 Line ID, a team entry
