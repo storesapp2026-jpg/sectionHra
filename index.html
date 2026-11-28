@@ -134,15 +134,9 @@ tr:hover td{background:#FFFBF3;}
 
 .badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:600;}
 .badge.Draft{background:#EEE; color:#777;}
-.badge.Returned{background:#E4DBF5; color:#5B3FA0;}
 .badge.Submitted{background:#FCEBC9; color:var(--warn);}
 .badge.Approved{background:#E1EBD9; color:var(--ok);}
 .badge.Rejected{background:#F5DAD5; color:var(--danger);}
-.badge.CoverTag{background:#DCEAF7; color:#1F5C99; border:1px solid #9FC1E3;}
-.cover-note{font-size:12px; line-height:1.55; color:#1F4E7A; background:#EEF5FC; border:1px solid #CFE0F2; border-radius:8px; padding:7px 10px; margin-bottom:6px;}
-.cover-card .cover-meta{display:grid; grid-template-columns:1fr 1fr; gap:4px 14px; font-size:12.5px; color:var(--coffee-600); line-height:1.6;}
-.cover-card pre.cover-hist{white-space:pre-wrap; font-size:11.5px; background:#FAF4EA; border-radius:6px; padding:8px; margin-top:6px;}
-@media (max-width:640px){ .cover-card .cover-meta{grid-template-columns:1fr;} }
 .badge.warn{background:#FCEBC9; color:var(--warn);}
 
 .btn{padding:8px 14px; border-radius:7px; font-size:12.5px; font-weight:600;}
@@ -606,7 +600,6 @@ main.content{
           <div id="wfChecklistWrap" style="display:none;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;">
               <div style="font-size:11.5px;font-weight:600;color:var(--coffee-700);text-transform:uppercase;letter-spacing:.04em;" data-i18n="selectWorkflows">Select Workflows</div>
-              <label id="regShowOthersWrap" style="display:none;align-items:center;gap:6px;font-size:12px;font-weight:400;color:#1F5C99;"><input type="checkbox" id="regShowOthers" onchange="toggleShowOtherWf(this.checked)"> Show workflows assigned to other staff (Cover entry only)</label>
               <div>
                 <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllWorkflows(true)" data-i18n="selectAll">Select All</button>
                 <button type="button" class="btn btn-outline btn-sm" onclick="toggleAllWorkflows(false)" data-i18n="clearAll">Clear All</button>
@@ -692,7 +685,6 @@ main.content{
         <div style="margin-bottom:14px;">
           <button class="btn btn-brown btn-sm" id="apTabSubmitted" onclick="setApprovalsTab('Submitted')" data-i18n="submittedEntries">Submitted Entries</button>
           <button class="btn btn-outline btn-sm" id="apTabDraft" onclick="setApprovalsTab('Draft')" data-i18n="draftEntries">Draft Entries</button>
-          <button class="btn btn-outline btn-sm" id="apTabCover" onclick="setApprovalsTab('Cover')">🔁 Cover Approvals <span id="apCoverCount"></span></button>
         </div>
         <div id="approvalsList"></div>
       </section>
@@ -718,8 +710,8 @@ main.content{
             <div><label for="addWfStatus">Status</label><select id="addWfStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
           </div>
           <div class="form-row">
-            <div><label for="addWfResp1">Primary Responsible Staff (Individual workflow only)</label><select id="addWfResp1"></select></div>
-            <div><label for="addWfResp2">Second / Backup Responsible Staff (optional; equal 50% share)</label><select id="addWfResp2"></select></div>
+            <div><label for="addWfResp1">Responsible person 1 (Individual workflow only)</label><select id="addWfResp1"></select></div>
+            <div><label for="addWfResp2">Responsible person 2 (optional)</label><select id="addWfResp2"></select></div>
           </div>
           <label style="display:flex;align-items:center;gap:8px;margin:8px 0 4px;font-weight:600;"><input type="checkbox" id="addWfTeam"> Team workflow (Co-Staff basis) <span style="font-weight:400;color:var(--coffee-500);font-size:12px;">— tick if several staff do this job together; the Working Register will then show the Co-Staff checklist and the Weightage / Score is shared equally among them</span></label>
           <label style="display:block;margin:8px 0 4px;">Applicable Section(s) * <span style="font-weight:400;color:var(--coffee-500);font-size:12px;">— only staff of the ticked Section(s) will see this workflow in the Working Register</span></label>
@@ -749,8 +741,8 @@ main.content{
             <div><label for="editWfTeam">Team workflow (Co-Staff basis)</label>
               <select id="editWfTeam"><option value="No">No - Individual</option><option value="Yes">Yes - Team / Co-Staff</option></select>
               <div id="editWfTeamNote" style="font-size:12px;color:var(--coffee-500);margin-top:4px;"></div></div>
-            <div><label for="editWfResp1">Primary Responsible Staff (Individual workflow only)</label><select id="editWfResp1"></select></div>
-            <div><label for="editWfResp2">Second / Backup Responsible Staff (optional; equal 50% share)</label><select id="editWfResp2"></select>
+            <div><label for="editWfResp1">Responsible person 1 (Individual workflow only)</label><select id="editWfResp1"></select></div>
+            <div><label for="editWfResp2">Responsible person 2 (optional)</label><select id="editWfResp2"></select>
               <div style="font-size:12px;color:var(--coffee-500);margin-top:4px;">Only the chosen person(s) can log this workflow. With 2 persons the Target and Weightage are split equally. Leave both blank = anyone.</div></div>
           </div>
           <button class="btn btn-brown" onclick="saveWorkflowEdit()" data-i18n="saveChanges">Save Changes</button>
@@ -1210,6 +1202,12 @@ main.content{
         <h2 class="view-title" data-i18n="reportsTitle">Reports</h2>
         <p class="view-sub" data-i18n="reportsSub">Monthly Target &rarr; Approved Actual &rarr; Balance &rarr; Achievement % &rarr; KPI Score - Approved entries only (Draft/Submitted/Rejected never count)</p>
 
+        <!-- Hybrid KPI status strip (Nov 2026): getHybridConfig() has no rows of its own to
+             report on, so it's shown here as a plain status line instead of a report button -
+             visible whether the switch is on or off, so this page doubles as the go-live
+             checklist's "what's the config right now" view. Hidden quietly if the call fails. -->
+        <div id="hybConfigStrip" style="display:none;margin-bottom:10px;padding:8px 12px;background:var(--cream-100);border-radius:10px;font-size:12.5px;color:var(--coffee-700);"></div>
+
         <div class="card">
           <div id="repTypeButtons" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;"></div>
         </div>
@@ -1239,7 +1237,6 @@ main.content{
                 <option value="Submitted" data-i18n="statusSubmitted">Submitted</option>
                 <option value="Approved" data-i18n="statusApproved">Approved</option>
                 <option value="Rejected" data-i18n="statusRejected">Rejected</option>
-                <option value="Returned">Returned</option>
               </select>
             </div>
             <div style="align-self:end;"><button class="btn btn-brown" onclick="runReport()" data-i18n="runReport">Run Report</button></div>
@@ -1302,7 +1299,7 @@ main.content{
       <!-- LOGIN ACCOUNTS (HR only) -->
       <section class="view" id="view-loginAccounts">
         <h2 class="view-title">Login Accounts</h2>
-        <p class="view-sub">HR creates and maintains logins for staff. Each new or reset account gets its own random one-time password (shown once, only to you) and must choose a new password at first login. Passwords are never shown or stored in plain text.</p>
+        <p class="view-sub">HR creates and maintains logins for staff. New accounts get the starter password <strong>ChangeMe@123</strong> and must choose their own password at first login. Passwords are never shown or stored in plain text.</p>
         <div class="card">
           <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:10px;">
             <div><label for="laSearch">Search</label><input type="text" id="laSearch" placeholder="Name / ID / User ID" oninput="renderLoginAccounts()"></div>
@@ -1419,7 +1416,7 @@ function localDateStr(d) {
 /* ============================================================
    CONFIG — paste your deployed Apps Script Web App URL here
    ============================================================ */
-const API_URL = "https://script.google.com/macros/s/AKfycbwJHHaXRp3-_BpwhaRZFsAs1J1ML7JqpeSS9R65CUJzqohuCcPPHE1Ji91inIQYvtNW/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzFf7YQNRdgFX5XhYs0hKLff7EGb-PIYlzElejuQkDCNfHS1HlPhl4LLr0vo_JDE_hnnQ/exec";
 /*
  * Sri Narasu's Coffee Company Pvt Ltd
  * Stores Department - Staff Working Register & KPI Appraisal System
@@ -1467,7 +1464,7 @@ const I18N = {
   teamTag: { en: "Together &middot; Focused &middot; Committed &middot; Successful", ta: "ஒன்றாக &middot; கவனத்துடன் &middot; அர்ப்பணிப்புடன் &middot; வெற்றியுடன்" },
   kpiByStaff: { en: "KPI Score by Staff", ta: "பணியாளர் வாரியான KPI மதிப்பெண்" },
   kpiByActivity: { en: "KPI Score by Activity", ta: "செயல்பாடு வாரியான KPI மதிப்பெண்" },
-  kpiPctByStaff: { en: "Achievement % by Staff (Own Responsibility)", ta: "பணியாளர் வாரியான சாதனை % (சொந்த பொறுப்பு)" },
+  kpiPctByStaff: { en: "Achievement % by Staff (Fair-share)", ta: "பணியாளர் வாரியான சாதனை % (Fair-share)" },
   kpiPctByActivity: { en: "Achievement % by Activity", ta: "செயல்பாடு வாரியான இலக்கு சாதனை %" },
   regTitle: { en: "Working Register", ta: "பணி பதிவேடு" },
   regSub: { en: "Pick the Date and Activity, then tick the workflows you performed. Team workflows can be entered multiple times on the same date for separate jobs. Monthly Target, Completed and Balance are shown live.", ta: "தேதி மற்றும் செயல்பாட்டை ஒருமுறை தேர்ந்தெடுத்து, நீங்கள் செய்த ஒவ்வொரு பணிப்பாய்வையும் தேர்வு செய்யவும். மாதாந்திர இலக்கு, முடிக்கப்பட்டது மற்றும் மீதமுள்ள இலக்கு நேரடியாக காட்டப்படும்." },
@@ -1814,7 +1811,7 @@ const I18N = {
   colStoresRating: { en: "Stores Rating", ta: "ஸ்டோர்ஸ் மதிப்பீடு" },
   storesCapNote: { en: "Stores cap", ta: "Stores வரம்பு" },
   storesCapTip: { en: "Final rating limited to one level above the Stores rating. Rating by score", ta: "இறுதி மதிப்பீடு Stores மதிப்பீட்டை விட ஒரு நிலைக்கு மேல் போகாது. மதிப்பெண் அடிப்படையிலான மதிப்பீடு" },
-  colFairSharePct: { en: "Own Index %", ta: "சொந்த பொறுப்பு Index %" },
+  colFairSharePct: { en: "% of Fair Share", ta: "நியாய பங்கில் %" },
   storesPctCol: { en: "Stores %", ta: "ஸ்டோர்ஸ் %" },
   gradeCol: { en: "Grade", ta: "தரம்" },
   workingDays: { en: "Working Days", ta: "பணி நாட்கள்" },
@@ -1852,41 +1849,6 @@ const I18N = {
   statusApproved: { en: "Approved", ta: "ஒப்புதல் அளிக்கப்பட்டது" },
   statusRejected: { en: "Rejected", ta: "நிராகரிக்கப்பட்டது" },
   repStaffPerf: { en: "📊 Staff Performance", ta: "📊 பணியாளர் செயல்திறன்" },
-  repRespActual: { en: "🧭 Responsibility vs Actual Performance", ta: "🧭 பொறுப்பு vs உண்மையான செயல்திறன்" },
-  colWorkflowId: { en: "Workflow ID", ta: "Workflow ID" },
-  colRespPerson: { en: "Responsibility Person", ta: "பொறுப்பாளர்" },
-  colFixedTarget: { en: "Fixed Monthly Target", ta: "நிர்ணய Target" },
-  colRespWeightage: { en: "Responsibility Weightage", ta: "பொறுப்பு Weightage" },
-  colActualPerformers: { en: "Actual Performer(s)", ta: "உண்மையில் செய்தவர்(கள்)" },
-  colRemainingTarget: { en: "Remaining Target", ta: "மீதம் Target" },
-  colNonParticipation: { en: "Participation Status", ta: "பங்கேற்பு நிலை" },
-  colDoneByOther: { en: "Done by other staff", ta: "பிறர் செய்தது" },
-  colApprovalStatus: { en: "Manager Approval Status", ta: "Manager அங்கீகார நிலை" },
-  repOverallStaff: { en: "📊 Overall Staff Performance", ta: "📊 மொத்த பணியாளர் செயல்திறன்" },
-  colRank: { en: "Rank", ta: "தரவரிசை" },
-  colAssignedResp: { en: "Assigned Responsibilities", ta: "ஒதுக்கிய பொறுப்புகள்" },
-  colWorkForOthers: { en: "Work for others (approved)", ta: "பிறர் பொறுப்பில் செய்தது" },
-  colTotalStaff: { en: "Total Staff", ta: "மொத்த Staff" },
-  colTotalAssignedWf: { en: "Assigned Workflows", ta: "ஒதுக்கிய Workflows" },
-  colTotalApprovedWork: { en: "Approved Work", ta: "அங்கீகரித்த வேலை" },
-  colTotalPending: { en: "Pending Approvals", ta: "நிலுவை அங்கீகாரம்" },
-  colTotalCompleted: { en: "Completed Qty", ta: "செய்த அளவு" },
-  colAvgStores: { en: "Avg Stores KPI", ta: "சராசரி Stores KPI" },
-  colAvgHr: { en: "Avg HR Score", ta: "சராசரி HR" },
-  colAvgFinal: { en: "Avg Final Score", ta: "சராசரி இறுதி" },
-  colTopPerformer: { en: "Top Performer", ta: "சிறந்த பணியாளர்" },
-  colRatingDist: { en: "Rating Distribution", ta: "Rating பகிர்வு" },
-  repWorkBased: { en: "👤 Individual Staff Work-Based Appraisal", ta: "👤 தனிநபர் வேலை அடிப்படை மதிப்பீடு" },
-  colRespAssigned: { en: "Responsibility Assigned", ta: "பொறுப்பு ஒதுக்கீடு" },
-  colWorkType: { en: "Work Type", ta: "வேலை வகை" },
-  colRespOwner: { en: "Responsibility Owner", ta: "பொறுப்பாளர்" },
-  colActualCompleted: { en: "Actual Completed Qty", ta: "செய்த அளவு" },
-  colReturnedQty: { en: "Returned Qty", ta: "திருப்பியது" },
-  colParticipation: { en: "Participation", ta: "பங்கேற்பு" },
-  colStoresOwnIdx: { en: "Stores KPI (Own Index %)", ta: "Stores KPI (சொந்த Index %)" },
-  colHrScore: { en: "HR Score", ta: "HR மதிப்பெண்" },
-  colFinalScore: { en: "Final Score", ta: "இறுதி மதிப்பெண்" },
-  colFinalRating: { en: "Final Rating", ta: "இறுதி Rating" },
   repStaffWfKpi: { en: "🔍 Staff Workflow KPI Audit", ta: "🔍 பணியாளர் Workflow KPI தணிக்கை" },
   colWorkflow: { en: "Workflow", ta: "Workflow" },
   colWfTarget: { en: "Workflow Target", ta: "Workflow இலக்கு" },
@@ -1898,11 +1860,21 @@ const I18N = {
   colAssignedWf: { en: "Own Workflows", ta: "சொந்த Workflow-கள்" },
   colAssignedWeightage: { en: "Own Weightage (Max Possible)", ta: "சொந்த Weightage (அதிகபட்சம்)" },
   colAssignedEarned: { en: "Own Earned KPI", ta: "சொந்த பெற்ற KPI" },
-  colAssignedPct: { en: "Own Index % (Earned / Own Weightage)", ta: "சொந்த Index % (பெற்றது / சொந்த Weightage)" },
-  colOwnRating: { en: "Rating (Own Responsibility)", ta: "மதிப்பீடு (சொந்தப் பொறுப்பு)" },
+  colAssignedPct: { en: "Own Achievement % (Earned / Possible)", ta: "சொந்த சாதனை % (பெற்றது / சாத்தியம்)" },
   repActivityPerf: { en: "📈 Activity Performance", ta: "📈 செயல்பாடு செயல்திறன்" },
   repActivityStaffPerf: { en: "📈 Activity - Staff Performance", ta: "📈 செயல்பாடு - பணியாளர் செயல்திறன்" },
   repStaffComparison: { en: "🏆 Staff Comparison", ta: "🏆 பணியாளர் ஒப்பீடு" },
+  repRespIndex: { en: "🎯 Responsibility Index", ta: "🎯 பொறுப்பு குறியீடு (Responsibility Index)" },
+  colRiOwnMax: { en: "Own Max (Responsibility)", ta: "சொந்த பொறுப்பு Max" },
+  colRiOwnEarned: { en: "Own Earned", ta: "சொந்தமாக பெற்றது" },
+  colRiOwnPct: { en: "Own %", ta: "சொந்த %" },
+  colRiTeamMax: { en: "Team Share Max (equal split)", ta: "Team பங்கு Max (சம பங்கு)" },
+  colRiTeamEarned: { en: "Team Share Earned", ta: "Team பங்கு பெற்றது" },
+  colRiTotalMax: { en: "Total Max", ta: "மொத்த Max" },
+  colRiTotalEarned: { en: "Total Earned", ta: "மொத்தம் பெற்றது" },
+  colRiIndex: { en: "Responsibility Index %", ta: "பொறுப்பு குறியீடு %" },
+  repRiOwnMaxTotal: { en: "Own Responsibility Max (all staff)", ta: "சொந்த பொறுப்பு Max (அனைவரும்)" },
+  repRiTeamPool: { en: "Team Pool Max (split equally)", ta: "Team Pool Max (சமமாகப் பிரிப்பு)" },
   repKpiWorkflowPerf: { en: "🎯 KPI / Workflow Performance", ta: "🎯 KPI / பணிப்பாய்வு செயல்திறன்" },
   repSectionPerf: { en: "🏢 Section Performance", ta: "🏢 பிரிவு செயல்திறன்" },
   repDateRangePerf: { en: "📅 Date Range Performance", ta: "📅 தேதி வரம்பு செயல்திறன்" },
@@ -1934,8 +1906,8 @@ const I18N = {
   colActivitiesCount: { en: "Activities Count", ta: "செயல்பாடுகள் எண்ணிக்கை" },
   colActivitiesNames: { en: "Activities (Names)", ta: "செயல்பாடுகள் (பெயர்கள்)" },
   colRating: { en: "Rating", ta: "மதிப்பீடு" },
-  repFairShareLbl: { en: "Own responsibility", ta: "நியாய பங்கு (நிலையான அடிப்படை)" },
-  repOfFairShare: { en: "of own responsibility", ta: "சொந்த பொறுப்பில்" },
+  repFairShareLbl: { en: "Fair share (fixed baseline)", ta: "நியாய பங்கு (நிலையான அடிப்படை)" },
+  repOfFairShare: { en: "of fair share", ta: "நியாய பங்கில்" },
   colStaffId: { en: "Staff ID", ta: "பணியாளர் ID" },
   colActualCount: { en: "Actual Count", ta: "நிகழ் எண்ணிக்கை" },
   colPendingCount: { en: "Pending Count", ta: "நிலுவை எண்ணிக்கை" },
@@ -1962,6 +1934,45 @@ const I18N = {
   repNoData: { en: "No data for the selected filters", ta: "தேர்ந்தெடுக்கப்பட்ட வடிகட்டிகளுக்கு தரவு இல்லை" },
   repLoading: { en: "Loading...", ta: "ஏற்றுகிறது..." },
   repNotSet: { en: "Not Set", ta: "அமைக்கப்படவில்லை" },
+
+  // ---- Hybrid KPI reports (Nov 2026): backend-only since the Nov 2026 audit found no frontend
+  // screens for these 6 actions yet - this adds the 6 screens (getHybridConfig is the status
+  // strip below the Reports page title; the other 5 reuse this same Reports engine). ----
+  hybConfigEnabled: { en: "Hybrid KPI", ta: "Hybrid KPI" },
+  hybConfigReady: { en: "Columns Ready", ta: "Columns தயார்" },
+  hybConfigWeights: { en: "Score Weights (Stores / HR)", ta: "மதிப்பெண் எடை (Stores / HR)" },
+  hybConfigRequireAssignment: { en: "Assignment required to log work", ta: "வேலை பதிவு செய்ய நியமனம் அவசியம்" },
+  repHybStaffReport: { en: "🧬 Hybrid KPI - Staff Report", ta: "🧬 Hybrid KPI - பணியாளர் அறிக்கை" },
+  repHybWorkflowDetail: { en: "🧬 Hybrid KPI - Workflow Detail", ta: "🧬 Hybrid KPI - Workflow விவரம்" },
+  repHybDashboardStaff: { en: "🧬 Hybrid Dashboard - Staff-wise", ta: "🧬 Hybrid Dashboard - பணியாளர் வாரியாக" },
+  repHybDashboardWorkflow: { en: "🧬 Hybrid Dashboard - Workflow-wise", ta: "🧬 Hybrid Dashboard - Workflow வாரியாக" },
+  repHybPreflight: { en: "🧬 Hybrid KPI - Go-Live Checklist", ta: "🧬 Hybrid KPI - Go-Live சரிபார்ப்பு பட்டியல்" },
+  repHybHistory: { en: "🧬 Hybrid KPI - Assignment History", ta: "🧬 Hybrid KPI - நியமன வரலாறு" },
+  colPerformedWf: { en: "Performed Workflows", ta: "செய்து முடித்த Workflow-கள்" },
+  colIndividualTarget: { en: "Individual Target", ta: "தனிநபர் இலக்கு" },
+  colIndividualApprovedQty: { en: "Individual Approved Qty", ta: "தனிநபர் ஒப்புதல் அளவு" },
+  colTeamApprovedQty: { en: "Team Approved Qty", ta: "Team ஒப்புதல் அளவு" },
+  colIndividualKpiMarks: { en: "Individual KPI Marks", ta: "தனிநபர் KPI மதிப்பெண்" },
+  colTeamKpiMarks: { en: "Team KPI Marks", ta: "Team KPI மதிப்பெண்" },
+  colWorkType: { en: "Work Type", ta: "வேலை வகை" },
+  colAssignedFlag: { en: "Assigned?", ta: "நியமிக்கப்பட்டதா?" },
+  colPerformedFlag: { en: "Performed?", ta: "செய்தாரா?" },
+  colKpiMarks: { en: "KPI Marks", ta: "KPI மதிப்பெண்கள்" },
+  colWorkflowId: { en: "Workflow ID", ta: "பணிப்பாய்வு ID" },
+  colChangedOn: { en: "Changed On", ta: "மாற்றப்பட்ட தேதி" },
+  colChangedBy: { en: "Changed By", ta: "மாற்றியவர்" },
+  colOldAssigned: { en: "Old Assigned Staff", ta: "முந்தைய நியமிக்கப்பட்டவர்" },
+  colNewAssigned: { en: "New Assigned Staff", ta: "புதிய நியமிக்கப்பட்டவர்" },
+  colChangeReason: { en: "Reason", ta: "காரணம்" },
+  cardActiveWorkflows: { en: "Active Workflows", ta: "செயலில் உள்ள Workflow-கள்" },
+  cardAssignedWorkflows: { en: "Assigned Workflows", ta: "நியமிக்கப்பட்ட Workflow-கள்" },
+  cardUnassignedWorkflows: { en: "Unassigned Workflows", ta: "நியமிக்கப்படாத Workflow-கள்" },
+  cardTotalActiveWorkflows: { en: "Total Active Workflows", ta: "மொத்த செயலில் உள்ள Workflow-கள்" },
+  cardTotalWorkEntries: { en: "Total Work Entries", ta: "மொத்த பணி பதிவுகள்" },
+  cardApprovedEntries: { en: "Approved Entries", ta: "ஒப்புதல் பெற்ற பதிவுகள்" },
+  cardPendingApprovals: { en: "Pending Approvals", ta: "நிலுவையில் உள்ள ஒப்புதல்கள்" },
+  cardRejectedEntries: { en: "Rejected Entries", ta: "நிராகரிக்கப்பட்ட பதிவுகள்" },
+  cardReturnedEntries: { en: "Returned for Correction", ta: "திருத்தத்திற்கு திருப்பி அனுப்பப்பட்டது" },
 
   // ---- Formula Verification panel (audit item 12) ----
   formulaVerifyTitle: { en: "Formula Verification", ta: "ஃபார்முலா சரிபார்ப்பு" },
@@ -2028,7 +2039,7 @@ const I18N = {
   noSnapshotsYet: { en: "No saved snapshots yet for this staff.", ta: "இந்த ஊழியருக்கு இதுவரை சேமிக்கப்பட்ட ஸ்னாப்ஷாட் இல்லை." },
   snapshotsSaved: { en: "snapshots saved", ta: "ஸ்னாப்ஷாட்கள் சேமிக்கப்பட்டன" },
   targetQtyShort: { en: "approved / target qty", ta: "அங்கீகரிக்கப்பட்டது / இலக்கு அளவு" },
-  dashPerfRating: { en: "Stores Performance (Own Responsibility)", ta: "கடை செயல்திறன் (சொந்த பொறுப்பு)" },
+  dashPerfRating: { en: "Stores Performance (Fair Share)", ta: "கடை செயல்திறன் (நியாய பங்கு)" },
   dashPerfFloorNote: { en: "achievement - minimum rating", ta: "சாதனை - குறைந்தபட்ச மதிப்பீடு" },
   hrPendingTitle: { en: "HR Score pending - attendance not verified.", ta: "HR மதிப்பெண் நிலுவையில் - attendance verify ஆகவில்லை." },
   hrPendingDays: { en: "attendance day(s) not yet Verified by Manager/HR.", ta: "நாட்கள் Manager/HR மூலம் இன்னும் verify ஆகவில்லை." },
@@ -2985,7 +2996,6 @@ document.addEventListener('click', (e) => {
     case 'deleteDraft': deleteDraft(id); break;
     case 'decideApprovalLines': decideApprovalLines(id, decision, btn); break;
     case 'decideApprovalGroup': decideApprovalGroup(id, decision, btn); break;
-    case 'decideCoverLine': decideCoverLine(id, decision, btn); break;
     case 'openWorkflowEdit': openWorkflowEdit(id); break;
     case 'laCreate': openLoginCreate(id); break;
     case 'laReset': resetLoginPw(id); break;
@@ -3155,7 +3165,7 @@ function renderDashboard(d) {
     const floorNote = pr.floorApplied ? `<div style="font-size:11.5px;margin-top:2px;opacity:.85">${pr.achievementPct}% ${T('dashPerfFloorNote')} ${escapeHtml(pr.rating)}</div>` : '';
     perfCardHtml = `<div class="stat-card"><div class="label">${T('dashPerfRating')}</div>
       <div class="value" style="font-size:20px"><span class="badge ${safeStatusClass(pr.rating)}">${escapeHtml(pr.rating)}</span></div>
-      <div style="font-size:12px;margin-top:4px;opacity:.85">${pr.idx}% ${T('repOfFairShare')}</div>${floorNote}</div>`;
+      <div style="font-size:12px;margin-top:4px;opacity:.85">${pr.idx}% ${T('repOfFairShare')} (${pr.fair}%)</div>${floorNote}</div>`;
   }
   document.getElementById('dashStats').innerHTML = `
     <div class="stat-card"><div class="label">${entriesLabel}</div><div class="value">${d.totalEntries}</div></div>
@@ -3266,8 +3276,8 @@ function _drawPctBarChartNow(canvasId, dataObj, detail, fair) {
             afterBody: items => {
               if (fair && fair.idx && fair.idx[items[0].label] !== undefined) {
                 const nm = items[0].label, inf = (fair.info && fair.info[nm]) || {};
-                const out = ['Own index: ' + fnum(fair.idx[nm]) + '%' + (fair.idx[nm] > 100 ? ' (chart capped at 100%)' : '')];
-                if (inf.kpiScore !== undefined) out.push('KPI score ' + fnum(inf.kpiScore) + ' / own max ' + fnum(inf.fairMarks));
+                const out = ['Fair-share index: ' + fnum(fair.idx[nm]) + '%' + (fair.idx[nm] > 100 ? ' (chart capped at 100%)' : '')];
+                if (inf.kpiScore !== undefined) out.push('KPI score ' + fnum(inf.kpiScore) + ' / fair share ' + fnum(inf.fairMarks));
                 if (fair.ratings && fair.ratings[nm]) out.push('Rating: ' + fair.ratings[nm]);
                 return out;
               }
@@ -3440,16 +3450,10 @@ function renderWorkflowChecklist() {
         && workflowAppliesToSection(w, mySection)
         // RESPONSIBLE PERSON(S): Staff see an individual workflow only if it is theirs (or has no
         // fixed person). A Manager still sees it, to credit the right person.
-        && (SESSION.role === 'Manager' || wfIsTeam(w) || !wfResponsibleIds(w).length || wfResponsibleIds(w).indexOf(String(SESSION.staffId)) !== -1
-            // STAFF COVER ENTRY (Nov 2026): with the toggle ON a Staff user also sees other staff's individual workflows - ticking one makes it a
-            // Cover entry that waits for MANAGER approval. The server re-validates everything (responsible person, performer, reason, role).
-            || (STAFF_COVER_UI_ENABLED && SESSION.role === 'Staff' && REG_SHOW_OTHERS_WF)))
+        && (SESSION.role === 'Manager' || wfIsTeam(w) || !wfResponsibleIds(w).length || wfResponsibleIds(w).indexOf(String(SESSION.staffId)) !== -1))
     : [];
   renderChecklistRows();
 }
-const STAFF_COVER_UI_ENABLED = true; // keep in step with STAFF_COVER_POLICY.ENABLED in Code.gs (the server decides; this only shows/hides the UI)
-let REG_SHOW_OTHERS_WF = false;
-function toggleShowOtherWf(on) { REG_SHOW_OTHERS_WF = !!on; renderWorkflowChecklist(); }
 
 // Shows/hides the Count/Unit/Remarks box (and, for a team workflow, the
 // Co-Staff checklist; for an individual workflow shown to a Manager, the
@@ -3467,23 +3471,6 @@ function toggleWfCount(wfId) {
   if (coStaffWrap) coStaffWrap.style.display = show ? 'block' : 'none';
   const assignWrap = row.querySelector('.reg-assign-wrap');
   if (assignWrap) assignWrap.style.display = show ? 'block' : 'none';
-}
-
-// Cover entry: when ticked, the "Assign KPI credit to" list shows every active staff (the actual performer);
-// when cleared it goes back to the Responsible persons only.
-function toggleCoverEntry(wfId) {
-  const row = document.querySelector('.wf-row[data-wfid="' + wfId + '"]');
-  if (!row) return;
-  const on = !!row.querySelector('.reg-cover-chk').checked;
-  const box = row.querySelector('.reg-cover-box'); if (box) box.style.display = on ? 'grid' : 'none';
-  const sel = row.querySelector('.reg-assign-staff');
-  if (!sel) return; // Staff cover rows have no "Assign KPI credit to" list - the cover block is always on
-  const w = (CURRENT_ACTIVITY_WFS || []).find(x => x['Workflow ID'] === wfId);
-  const ids = wfResponsibleIds(w);
-  const keep = sel.value;
-  sel.innerHTML = MASTERS.staff.filter(s => s['Status'] !== 'Inactive' && (on || ids.indexOf(String(s['Staff ID'])) !== -1))
-    .map(s => `<option value="${escapeHtml(s['Staff ID'])}">${escapeHtml(s['Staff Name'])}</option>`).join('');
-  if (keep) sel.value = keep;
 }
 
 // Wired to the "Select All" / "Clear All" buttons above the checklist.
@@ -3507,7 +3494,6 @@ function renderChecklistRows() {
   const mySection = getSessionSectionId();
   const coStaffOptions = MASTERS.staff.filter(s => s['Staff ID'] !== SESSION.staffId && s['Status'] !== 'Inactive' && s['Section'] === mySection);
   const isManager = SESSION.role === 'Manager';
-  { const _w = document.getElementById('regShowOthersWrap'); if (_w) { _w.style.display = (STAFF_COVER_UI_ENABLED && SESSION.role === 'Staff') ? 'flex' : 'none'; const _c = document.getElementById('regShowOthers'); if (_c) _c.checked = REG_SHOW_OTHERS_WF; } }
 
   const loggedByLine = document.getElementById('regLoggedByLine');
   if (loggedByLine) loggedByLine.innerHTML = 'Logged By: <strong style="color:var(--coffee-700);">' + escapeHtml(SESSION.staffName) + '</strong> (' + escapeHtml(SESSION.staffId) + ')';
@@ -3515,7 +3501,6 @@ function renderChecklistRows() {
   list.innerHTML = wfs.map(w => {
     const isTeam = TEAM_WORKFLOW_IDS.indexOf(w['Workflow ID']) !== -1;
     const target = getEffectiveTargetDisplay(CURRENT_ACTIVITY_ID, w);
-    const isStaffCover = !isManager && !isTeam && wfResponsibleIds(w).length > 0 && wfResponsibleIds(w).indexOf(String(SESSION.staffId)) === -1;
     return `
     <div class="wf-row" data-wfid="${escapeHtml(w['Workflow ID'])}">
       <label class="wf-label">
@@ -3523,9 +3508,8 @@ function renderChecklistRows() {
         ${escapeHtml(w['Workflow Name'])}
       </label>
       <div style="font-size:11.5px;color:var(--coffee-500);margin:2px 0 8px 26px;line-height:1.65;">
-        <div>Actual Performing / Logged-in Staff: <strong style="color:var(--coffee-700);">${escapeHtml(SESSION.staffName)}</strong> (${escapeHtml(SESSION.staffId)})</div>
-        ${(!isTeam && wfResponsibleIds(w).length) ? `<div>Responsibility Allocation: <strong style="color:var(--coffee-700);">${wfResponsibleIds(w).map((id, idx) => { const st = (MASTERS.staff || []).find(x => String(x['Staff ID']) === id); const nm = st ? st['Staff Name'] : id; const pct = Math.round((100 / wfResponsibleIds(w).length) * 100) / 100; return (wfResponsibleIds(w).length === 1 ? 'Primary: ' : (idx === 0 ? 'Primary: ' : 'Second / Backup: ')) + escapeHtml(nm) + ' (' + pct + '%)'; }).join(' &nbsp;|&nbsp; ')}</strong></div>` : ''}
-        <div>Entry Type: <strong style="color:var(--coffee-700);">${isStaffCover ? 'Cover Entry — Manager approval required' : (wfResponsibleIds(w).indexOf(String(SESSION.staffId)) !== -1 ? 'Normal Responsibility Entry' : (wfResponsibleIds(w).length ? (isManager ? 'Manager Entry' : 'Normal Entry') : 'Normal Entry'))}</strong></div>
+        <div>Staff: <strong style="color:var(--coffee-700);">${escapeHtml(SESSION.staffName)}</strong></div>
+        ${(!isTeam && wfResponsibleIds(w).length) ? `<div>Responsible: <strong style="color:var(--coffee-700);">${escapeHtml(wfResponsibleNames(w))}</strong>${wfResponsibleIds(w).length > 1 ? ' (Target &amp; Weightage shared equally)' : ''}</div>` : ''}
         <div>Unit: <strong style="color:var(--coffee-700);">${escapeHtml(w['Unit'])}</strong></div>
         <div>Monthly Target: <strong style="color:var(--coffee-700);">${target.value}</strong> ${target.source === 'monthly' ? '(this month\'s target)' : '(default target — no monthly target set)'}</div>
         <div>Completed This Month: <strong style="color:var(--coffee-700);">${target.completed}</strong></div>
@@ -3547,20 +3531,7 @@ function renderChecklistRows() {
       <div class="reg-assign-wrap" style="display:none;margin:6px 0 10px 25px;">
         <label for="wfAssign_${escapeHtml(w['Workflow ID'])}" style="font-size:11.5px;font-weight:600;color:var(--coffee-700);">Assign KPI credit to</label>
         <select id="wfAssign_${escapeHtml(w['Workflow ID'])}" class="reg-assign-staff">${wfResponsibleIds(w).length ? '' : `<option value="">Myself (${escapeHtml(SESSION.staffName)})</option>`}${MASTERS.staff.filter(s=>s['Status']!=='Inactive' && (!wfResponsibleIds(w).length || wfResponsibleIds(w).indexOf(String(s['Staff ID'])) !== -1)).map(s=>`<option value="${escapeHtml(s['Staff ID'])}">${escapeHtml(s['Staff Name'])} (${escapeHtml(s['Staff ID'])})</option>`).join('')}</select>
-        ${wfResponsibleIds(w).length ? `<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;margin-top:6px;"><input type="checkbox" class="reg-cover-chk" onchange="toggleCoverEntry('${escapeHtml(w['Workflow ID'])}')"> Cover entry - someone else did this work (marks go to the performer)</label>
-        <div class="reg-cover-box" style="display:none;margin-top:6px;gap:8px;grid-template-columns:1fr 1fr;">
-          <div><label style="font-size:11.5px;font-weight:600;">On behalf of (Responsible person)</label><select class="reg-cover-for">${wfResponsibleIds(w).map(id => { const st = MASTERS.staff.find(x => String(x['Staff ID']) === id); return `<option value="${escapeHtml(id)}">${escapeHtml(st ? st['Staff Name'] : id)}</option>`; }).join('')}</select></div>
-          <div><label style="font-size:11.5px;font-weight:600;">Reason (required)</label><input type="text" class="reg-cover-reason" placeholder="e.g. Raja on leave"></div>
-        </div>` : ''}
-      </div>` : (isStaffCover ? `
-      <div class="reg-assign-wrap" style="display:none;margin:6px 0 10px 25px;">
-        <div class="cover-note">🔁 This workflow is assigned to <b>${escapeHtml(wfResponsibleNames(w))}</b>. Your entry is saved as a <b>Cover entry</b> (status <b>PENDING_COVER_APPROVAL</b>) and counts for your KPI <b>only after the Manager approves</b>. The responsible person's target is not changed.</div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;"><input type="checkbox" class="reg-cover-chk" checked onclick="return false"> Cover entry - I did this work (Manager approval needed)</label>
-        <div class="reg-cover-box" style="display:grid;margin-top:6px;gap:8px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
-          <div><label style="font-size:11.5px;font-weight:600;">On behalf of (Responsible person)</label><select class="reg-cover-for">${wfResponsibleIds(w).map(id => { const st = MASTERS.staff.find(x => String(x['Staff ID']) === id); return `<option value="${escapeHtml(id)}">${escapeHtml(st ? st['Staff Name'] : id)}</option>`; }).join('')}</select></div>
-          <div><label style="font-size:11.5px;font-weight:600;">Reason / work details (required)</label><input type="text" class="reg-cover-reason" placeholder="e.g. Raja on leave - I prepared the report"></div>
-        </div>
-      </div>` : ''))}
+      </div>` : '')}
     </div>`;
   }).join('') || `<p class="empty">${T('noWorkflowsFound')}</p>`;
   wrap.style.display = wfs.length ? 'block' : 'none';
@@ -3594,18 +3565,10 @@ async function saveWorkingEntries(mode) {
     const remarks = (rowRemarksEl && rowRemarksEl.value) ? rowRemarksEl.value : sharedRemarks;
     lines.push({
       activityId, workflowId: wfId, unit: wf['Unit'],
-      target: wf['Target'], actual: row.querySelector('.wf-count').value, remarks, coStaffIds, assignedStaffId,
-      coverForStaffId: (row.querySelector('.reg-cover-chk') && row.querySelector('.reg-cover-chk').checked) ? row.querySelector('.reg-cover-for').value : '',
-      coverReason: (row.querySelector('.reg-cover-chk') && row.querySelector('.reg-cover-chk').checked) ? row.querySelector('.reg-cover-reason').value.trim() : ''
+      target: wf['Target'], actual: row.querySelector('.wf-count').value, remarks, coStaffIds, assignedStaffId
     });
   });
   if (lines.length === 0) { toast(T('tickWorkflow')); return; }
-  { // COVER entries: a clear reason is mandatory (the server re-checks); Staff cover lines also wait for Manager approval
-    const badCover = lines.filter(l => l.coverForStaffId && String(l.coverReason || '').trim().length < (SESSION.role === 'Staff' ? 5 : 1)).map(l => {
-      const wf = MASTERS.workflows.find(w => w['Workflow ID'] === l.workflowId); return wf ? wf['Workflow Name'] : l.workflowId; });
-    if (badCover.length) { toast('Cover entry: please enter the reason / work details for ' + badCover.join(', ')); return; }
-  }
-  const _hasStaffCover = SESSION.role === 'Staff' && lines.some(l => l.coverForStaffId);
   const zeroCountWfs = lines.filter(l => Number(l.actual) <= 0).map(l => {
     const wf = MASTERS.workflows.find(w => w['Workflow ID'] === l.workflowId);
     return wf ? wf['Workflow Name'] : l.workflowId;
@@ -3646,7 +3609,7 @@ async function saveWorkingEntries(mode) {
       loadRegister();
       return;
     }
-    toast(mode === 'Submitted' ? (_hasStaffCover ? 'Cover entry sent - PENDING MANAGER APPROVAL' : T('submittedForApproval')) : T('savedAsDraft'));
+    toast(mode === 'Submitted' ? T('submittedForApproval') : T('savedAsDraft'));
     document.getElementById('regActivity').value = '';
     document.getElementById('regRemarks').value = '';
     document.getElementById('wfChecklistWrap').style.display = 'none';
@@ -3663,12 +3626,6 @@ let _regSaveBusy = false;
 // each Line ID standing alone (individual workflows / no Team Ref No).
 // Used by both "My Draft Entries" and the Manager Approval view so both
 // show the same Staff/Co-Staff/Actual/Remarks breakdown per workflow.
-function staffNameById(id) { const s = (MASTERS.staff || []).find(x => String(x['Staff ID']) === String(id)); return s ? s['Staff Name'] : id; }
-// "COVER for Raja - PENDING_COVER_APPROVAL" line shown on cover entries (Draft / Returned / Approvals cards)
-function coverInfoHtml(wg) {
-  if (!wg || !wg.coverForId) return '';
-  return `<div style="margin-top:4px;"><span class="badge CoverTag">🔁 COVER for ${escapeHtml(staffNameById(wg.coverForId))}</span>${wg.coverStatus ? ` <span style="font-size:11px;color:#1F5C99;">${escapeHtml(wg.coverStatus)}</span>` : ''}${wg.coverReason ? `<div style="font-size:12px;color:var(--coffee-600);">Reason: ${escapeHtml(wg.coverReason)}</div>` : ''}</div>`;
-}
 function groupEntryLinesByWorkflow(g) {
   const order = [];
   const map = {};
@@ -3678,8 +3635,7 @@ function groupEntryLinesByWorkflow(g) {
       map[key] = {
         workflowId: r['Workflow ID'], workflowName: r['Workflow Name'],
         actual: r['Actual'], target: r['Target'], remarks: r['Remarks'],
-        status: r['Approval Status'], staffName: '', coStaffNames: [], lineIds: [],
-        coverForId: r['Cover For Staff ID'] || '', coverSource: r['Cover Source'] || '', coverStatus: r['Cover Status'] || '', coverReason: r['Cover Reason'] || ''
+        status: r['Approval Status'], staffName: '', coStaffNames: [], lineIds: []
       };
       order.push(key);
     }
@@ -3712,7 +3668,6 @@ async function loadMyDrafts(preloadedGroups) {
     try { groups = await callApi('getEntryGroups', { status: 'Draft', staffId: SESSION.staffId }); }
     catch (e) { toast(e.message); return; }
   }
-  try { const ret = await callApi('getEntryGroups', { status: 'Returned', staffId: SESSION.staffId }); if (Array.isArray(ret)) groups = ret.concat(groups); } catch (e) { /* Returned list is best-effort */ }
   const list = document.getElementById('myDraftsList');
   if (groups.length === 0) { list.innerHTML = `<div class="empty">${T('noDrafts')}</div>`; return; }
   groups.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -3721,9 +3676,8 @@ async function loadMyDrafts(preloadedGroups) {
     return `
     <div class="draft-row" style="display:block;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <div>${g.lines[0]['Approval Status'] === 'Returned' ? '<span class="badge Returned">RETURNED</span>' : '<span class="badge Draft">DRAFT</span>'} <strong style="margin-left:6px;">${fmtDate(g.date)}</strong> &middot; ${escapeHtml(g.lines[0]['Activity Name'])}</div>
+        <div><span class="badge Draft">DRAFT</span> <strong style="margin-left:6px;">${fmtDate(g.date)}</strong> &middot; ${escapeHtml(g.lines[0]['Activity Name'])}</div>
       </div>
-      ${g.lines[0]['Approval Status'] === 'Returned' ? `<div style="font-size:12.5px;color:#5B3FA0;margin-top:4px;">Returned by Manager: ${escapeHtml(g.lines[0]['Rejection Reason'] || '')} - correct and submit again.</div>` : ''}
       <div style="margin:8px 0 4px;">
         ${wfGroups.map(wg => `
           <div style="font-size:12.5px;color:var(--coffee-600);line-height:1.7;padding:6px 0;border-top:1px solid #EEE0CC;">
@@ -3731,7 +3685,6 @@ async function loadMyDrafts(preloadedGroups) {
             <div>Staff: <strong>${escapeHtml(wg.staffName)}</strong></div>
             <div>Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}</div>
             <div>Actual: <strong>${wg.actual}</strong>${wg.remarks ? ' &middot; Remarks: ' + escapeHtml(wg.remarks) : ''}</div>
-            ${coverInfoHtml(wg)}
           </div>
         `).join('')}
       </div>
@@ -3931,7 +3884,7 @@ async function loadRegister() {
     <tr>
       <td>${fmtDate(r['Date'])}</td><td>${escapeHtml(r['Activity Name'])}</td><td>${escapeHtml(r['Workflow Name'])}</td><td>${escapeHtml(r['Staff Name'])}</td>
       <td>${coStaffLabel(r)}</td><td>${escapeHtml(r['Target'])}</td><td>${escapeHtml(r['Actual'])}</td><td>${scoreCell}</td>
-      <td><span class="badge ${safeStatusClass(r['Approval Status'])}">${escapeHtml(r['Approval Status'])}</span>${r['Self Approved'] === 'Yes' ? ` <span class="badge SelfApproved" title="Manager approved their own entry">${T('selfApprovedBadge')}</span>` : ''}${r['Cover For Staff ID'] ? ` <span class="badge CoverTag" title="${escapeHtml(r['Cover Status'] || 'Cover entry')}">🔁 COVER for ${escapeHtml(staffNameById(r['Cover For Staff ID']))}</span>` : ''}</td>
+      <td><span class="badge ${safeStatusClass(r['Approval Status'])}">${escapeHtml(r['Approval Status'])}</span>${r['Self Approved'] === 'Yes' ? ` <span class="badge SelfApproved" title="Manager approved their own entry">${T('selfApprovedBadge')}</span>` : ''}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="9" class="empty">${T('noEntriesYet')}</td></tr>`;
 }
@@ -3950,17 +3903,13 @@ function setApprovalsTab(status) {
   APPROVALS_TAB = status;
   const subBtn = document.getElementById('apTabSubmitted');
   const draftBtn = document.getElementById('apTabDraft');
-  const coverBtn = document.getElementById('apTabCover');
   if (subBtn) subBtn.className = 'btn btn-sm ' + (status === 'Submitted' ? 'btn-brown' : 'btn-outline');
   if (draftBtn) draftBtn.className = 'btn btn-sm ' + (status === 'Draft' ? 'btn-brown' : 'btn-outline');
-  if (coverBtn) coverBtn.className = 'btn btn-sm ' + (status === 'Cover' ? 'btn-brown' : 'btn-outline');
   loadApprovals();
 }
 
 async function loadApprovals() {
   const list = document.getElementById('approvalsList');
-  if (APPROVALS_TAB === 'Cover') { loadCoverApprovals(); return; }
-  refreshCoverPendingCount();
   let groups;
   try { groups = await callApi('getEntryGroups', { status: APPROVALS_TAB }); }
   catch (e) { toast(e.message); return; }
@@ -3988,20 +3937,17 @@ function renderApprovalGroupCard(g) {
           Co-Staff: ${wg.coStaffNames ? escapeHtml(wg.coStaffNames) : 'None'}<br>
           Actual: <strong>${wg.actual}</strong> &middot; Target: ${wg.target}
           ${wg.remarks ? '<br>Remarks: ' + escapeHtml(wg.remarks) : ''}
-          ${coverInfoHtml(wg)}
         </div>
         ${isSubmitted ? `
         <div style="margin-top:8px;">
           <button class="btn btn-brown btn-sm" data-action="decideApprovalLines" data-id="${escapeHtml(wg.lineIds.join(','))}" data-decision="Approved">✅ ${T('approveBtn')}</button>
           <button class="btn btn-danger btn-sm" data-action="decideApprovalLines" data-id="${escapeHtml(wg.lineIds.join(','))}" data-decision="Rejected">❌ ${T('rejectBtn')}</button>
-          <button class="btn btn-outline btn-sm" data-action="decideApprovalLines" data-id="${escapeHtml(wg.lineIds.join(','))}" data-decision="Returned">↩️ Return</button>
         </div>` : ''}
       </div>
     `).join('')}
     ${isSubmitted && wfGroups.length > 1 ? `
     <div data-approval-groupbar="1" style="margin-top:10px;">
       <button class="btn btn-outline btn-sm" data-action="decideApprovalGroup" data-id="${escapeHtml(g.groupId)}" data-decision="Approved">✅ ${T('approveAll')}</button>
-      <button class="btn btn-outline btn-sm" data-action="decideApprovalGroup" data-id="${escapeHtml(g.groupId)}" data-decision="Returned">↩️ Return All</button>
     </div>` : ''}
     ${isDraft ? `
     <div style="margin-top:8px;">
@@ -4009,80 +3955,6 @@ function renderApprovalGroupCard(g) {
       <button class="btn btn-danger btn-sm" data-action="deleteDraft" data-id="${escapeHtml(g.groupId)}">${T('deleteBtn')}</button>
     </div>` : ''}
   </div>`;
-}
-
-/* ============================================================
-   COVER APPROVALS (Manager only) - Staff-submitted Cover entries (PENDING_COVER_APPROVAL).
-   Server actions: getPendingCoverEntries {view:'pending'|'all'} and decideCoverEntries {lineIds, decision, reason}.
-   Only a Manager can decide (enforced in Code.gs). Approved => credit goes to the actual performer.
-   ============================================================ */
-let COVER_VIEW = 'pending';
-function setCoverView(v) { COVER_VIEW = v; loadCoverApprovals(); }
-async function refreshCoverPendingCount() {
-  const el = document.getElementById('apCoverCount'); if (!el || !SESSION || SESSION.role !== 'Manager') return;
-  try { const rows = await callApi('getPendingCoverEntries', { view: 'pending' }); el.textContent = rows && rows.length ? '(' + rows.length + ')' : ''; }
-  catch (e) { /* older backend without the action: stay silent */ }
-}
-async function loadCoverApprovals() {
-  const list = document.getElementById('approvalsList');
-  list.innerHTML = '<div class="card"><div class="empty">Loading…</div></div>';
-  let rows;
-  try { rows = await callApi('getPendingCoverEntries', { view: COVER_VIEW }); }
-  catch (e) { toast(e.message); list.innerHTML = ''; return; }
-  rows = rows || [];
-  if (COVER_VIEW === 'pending') { const el = document.getElementById('apCoverCount'); if (el) el.textContent = rows.length ? '(' + rows.length + ')' : ''; }
-  const bar = `<div style="margin-bottom:10px;">
-      <button class="btn btn-sm ${COVER_VIEW === 'pending' ? 'btn-brown' : 'btn-outline'}" onclick="setCoverView('pending')">Pending approval</button>
-      <button class="btn btn-sm ${COVER_VIEW === 'all' ? 'btn-brown' : 'btn-outline'}" onclick="setCoverView('all')">All cover entries (history)</button>
-    </div>
-    <p class="view-sub" style="margin-bottom:10px;">A Cover entry is work done by a staff who is <b>not</b> the responsible person. Only after you <b>Approve</b> does the credit go to the actual performer; the responsible person's target is unchanged.</p>`;
-  if (!rows.length) { list.innerHTML = bar + `<div class="card"><div class="empty">${COVER_VIEW === 'pending' ? 'No Cover entries waiting for approval.' : 'No Cover entries yet.'}</div></div>`; return; }
-  list.innerHTML = bar + rows.map(r => {
-    const pending = r.approvalStatus === 'Submitted';
-    const badge = r.approvalStatus === 'Approved' ? 'Approved' : r.approvalStatus === 'Rejected' ? 'Rejected' : r.approvalStatus === 'Returned' ? 'Returned' : 'Submitted';
-    return `
-  <div class="card cover-card" data-cover-card="${escapeHtml(r.lineId)}">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
-      <div><strong>${fmtDate(r.date)}</strong> &middot; ${escapeHtml(r.activityName || '')} &rsaquo; <strong>${escapeHtml(r.workflowName || '')}</strong></div>
-      <span class="badge ${safeStatusClass(badge)}">${escapeHtml(r.coverStatus || r.approvalStatus)}</span>
-    </div>
-    <div class="cover-meta">
-      <div>Responsible person: <strong>${escapeHtml(r.responsiblePersonName)}</strong></div>
-      <div>Actual performer: <strong>${escapeHtml(r.actualPerformerName)}</strong></div>
-      <div>Quantity done: <strong>${escapeHtml(r.quantity)}</strong> ${escapeHtml(r.unit || '')}</div>
-      <div>Responsible person's target: <strong>${escapeHtml(r.target)}</strong></div>
-      <div style="grid-column:1/-1;">Work details: ${r.workDetails ? escapeHtml(r.workDetails) : '—'}</div>
-      <div style="grid-column:1/-1;">Cover reason: ${r.coverReason ? escapeHtml(r.coverReason) : '—'}</div>
-      <div>Submitted by: ${escapeHtml(r.createdByName || r.createdById)}</div>
-      <div>Submitted on: ${r.submittedOn ? escapeHtml(fmtDate(r.submittedOn)) : '—'}</div>
-      ${r.approvedBy ? `<div>Approved by: ${escapeHtml(r.approvedBy)}</div><div>Approved on: ${escapeHtml(fmtDate(r.approvedOn))}</div>` : ''}
-      ${r.rejectedBy ? `<div>${r.approvalStatus === 'Returned' ? 'Returned' : 'Rejected'} by: ${escapeHtml(r.rejectedBy)}</div><div>Reason: ${escapeHtml(r.rejectionReason || '')}</div>` : ''}
-    </div>
-    ${r.problem ? `<div class="cover-note" style="background:#FDF1E3;border-color:#F0D3A8;color:#8A4B08;margin-top:8px;">⚠️ ${escapeHtml(r.problem)} - this entry cannot be approved; Reject or Return it.</div>` : ''}
-    ${r.history ? `<details style="margin-top:6px;"><summary style="font-size:12px;cursor:pointer;color:var(--coffee-600);">Approval history</summary><pre class="cover-hist">${escapeHtml(r.history)}</pre></details>` : ''}
-    ${pending ? `
-    <div style="margin-top:10px;">
-      ${r.canApprove ? `<button class="btn btn-brown btn-sm" data-action="decideCoverLine" data-id="${escapeHtml(r.lineId)}" data-decision="Approved">✅ Approve as Cover</button>` : ''}
-      <button class="btn btn-danger btn-sm" data-action="decideCoverLine" data-id="${escapeHtml(r.lineId)}" data-decision="Rejected">❌ Reject</button>
-      <button class="btn btn-outline btn-sm" data-action="decideCoverLine" data-id="${escapeHtml(r.lineId)}" data-decision="Returned">↩️ Return for correction</button>
-    </div>` : ''}
-  </div>`;
-  }).join('');
-}
-async function decideCoverLine(lineId, decision, btn) {
-  let reason = '';
-  if (decision === 'Approved') { if (!confirm('Approve this Cover entry? The KPI credit goes to the actual performer.')) return; }
-  else {
-    reason = (prompt(decision === 'Rejected' ? 'Reason for rejecting this Cover entry (required):' : 'Reason for returning this Cover entry for correction (required):') || '').trim();
-    if (!reason) { toast('A reason is required.'); return; }
-  }
-  const btns = btn ? btn.parentElement.querySelectorAll('button') : [];
-  btns.forEach(b => b.disabled = true);
-  try {
-    await callApi('decideCoverEntries', { lineIds: [lineId], decision, reason });
-    toast(decision === 'Approved' ? 'Cover entry approved' : decision === 'Returned' ? 'Returned for correction' : 'Cover entry rejected');
-    loadCoverApprovals();
-  } catch (e) { toast(e.message); btns.forEach(b => b.disabled = false); }
 }
 
 // Decides one job's Line ID(s) (a solo entry = 1 Line ID, a team entry
@@ -4094,7 +3966,6 @@ async function decideApprovalLines(lineIdsCsv, decision, btn) {
   const lineIds = lineIdsCsv.split(',');
   let reason = '';
   if (decision === 'Rejected') reason = prompt(T('rejectReasonPrompt')) || '';
-  if (decision === 'Returned') { reason = (prompt('Reason for returning this entry for correction (required):') || '').trim(); if (!reason) { toast('Reason is required to return an entry.'); return; } }
   // ANTI-DOUBLE-CLICK (bugfix): disable both buttons for this line the
   // instant one is clicked, not after the server responds. Without this, a
   // second click on the same still-visible button before the list re-renders
@@ -4111,7 +3982,7 @@ async function decideApprovalLines(lineIdsCsv, decision, btn) {
     } else {
       await callApi('approveEntryLines', { lineIds, decision, reason });
     }
-    toast(decision === 'Approved' ? T('decision_Approved') : decision === 'Returned' ? 'Returned for correction' : T('decision_Rejected'));
+    toast(decision === 'Approved' ? T('decision_Approved') : T('decision_Rejected'));
     // PERF (Oct 2026): server confirmed - remove ONLY this job block. No full refresh.
     removeApprovalJob(lineIdsCsv);
   } catch (e) {
@@ -4125,12 +3996,11 @@ async function decideApprovalLines(lineIdsCsv, decision, btn) {
 async function decideApprovalGroup(groupId, decision, btn) {
   let reason = '';
   if (decision === 'Rejected') reason = prompt(T('rejectReasonPrompt')) || '';
-  if (decision === 'Returned') { reason = (prompt('Reason for returning this entry for correction (required):') || '').trim(); if (!reason) { toast('Reason is required to return an entry.'); return; } }
   // Same anti-double-click guard as decideApprovalLines() above.
   if (btn) btn.disabled = true;
   try {
     await callApi('approveEntryGroup', { groupId, decision, reason });
-    toast(decision === 'Approved' ? T('decision_Approved') : decision === 'Returned' ? 'Returned for correction' : T('decision_Rejected'));
+    toast(decision === 'Approved' ? T('decision_Approved') : T('decision_Rejected'));
     // PERF (Oct 2026): server confirmed - the whole group was decided, remove its card only.
     removeApprovalCard(groupId);
   } catch (e) {
@@ -4353,21 +4223,23 @@ async function bulkCreateLogins() {
   const btn = document.getElementById('laBulkBtn');
   const pendingCount = LOGIN_ACCOUNTS.filter(r => !r.userId && r.staffId && r.staffStatus !== 'Inactive').length;
   if (!pendingCount) { toast('Every active staff already has a login'); return; }
-  if (!confirm('Create Staff-role logins for ' + pendingCount + ' active staff who have none?\n\nEach person gets a different one-time password. You will download them as a CSV at the end (shown only once). They must change it at first login.\nManager logins are not created here - create those one by one.')) return;
+  if (!confirm('Create Staff-role logins for ' + pendingCount + ' active staff who have none?\n\nStarter password: ChangeMe@123 (must be changed at first login).\nManager logins are not created here - create those one by one.')) return;
   btn.disabled = true;
   const made = [];
+  let defaultPassword = 'ChangeMe@123';
   try {
     for (let guard = 0; guard < 40; guard++) {
       laShowResult('⏳ Creating logins… ' + made.length + ' of ' + pendingCount + ' done. Please keep this page open.');
       const d = await callApi('bulkCreateLoginAccounts', {});
       (d.accounts || []).forEach(a => made.push(a));
+      if (d.defaultPassword) defaultPassword = d.defaultPassword;
       if (!d.remaining || !d.created) break; // done, or nothing new could be created this round
     }
   } catch (e) { toast(e.message); }
   btn.disabled = false;
   if (made.length) {
-    laShowResult('✅ ' + made.length + ' logins created. Each has its own one-time password - download the list NOW (passwords are not shown again). ' +
-      '<button class="btn btn-outline btn-sm" onclick="downloadNewLogins()">⬇ Download list with passwords (CSV)</button>');
+    laShowResult('✅ ' + made.length + ' logins created. Starter password for all: <strong>' + escapeHtml(defaultPassword) + '</strong> (each person must change it at first login). ' +
+      '<button class="btn btn-outline btn-sm" onclick="downloadNewLogins()">⬇ Download list (CSV)</button>');
     window.__laLastBulk = made;
   } else {
     laShowResult('No new logins were created.');
@@ -4376,7 +4248,12 @@ async function bulkCreateLogins() {
 }
 function downloadNewLogins() {
   const made = window.__laLastBulk || [];
-  const csv = ['User ID,Staff ID,Staff Name,One-time password'].concat(made.map(a => [a.userId, a.staffId, '"' + String(a.staffName).replace(/"/g, '""') + '"', a.password || ''].join(','))).join('\r\n');
+  // AUDIT FIX (Nov 2026): CSV/formula-injection guard - a Staff Name starting with =, +, - or @
+  // could run as a formula instead of displaying as text when this CSV is reopened in Excel/
+  // Sheets. A leading apostrophe forces it back to plain text; genuine negative/decimal numbers
+  // are left alone. Matches the more refined guard this file already uses in exportReportCsv().
+  const _nlEsc = (v) => { let s = String(v == null ? '' : v); if (/^[=+\-@]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = "'" + s; return s; };
+  const csv = ['User ID,Staff ID,Staff Name'].concat(made.map(a => [a.userId, a.staffId, '"' + _nlEsc(a.staffName).replace(/"/g, '""') + '"'].join(','))).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -4441,7 +4318,7 @@ async function saveAddWorkflow() {
   const all = document.getElementById('addWfSecAll') && document.getElementById('addWfSecAll').checked;
   const picked = [...document.querySelectorAll('#addWfSections .addWfSecChk:checked')].map(cb => cb.value);
   if (!all && !picked.length) { toast('Select at least one Section (or All Sections)'); return; }
-  if (document.getElementById('addWfResp1').value && document.getElementById('addWfResp1').value === document.getElementById('addWfResp2').value) { toast('Primary and Second / Backup Responsible Staff must be different'); return; }
+  if (document.getElementById('addWfResp1').value && document.getElementById('addWfResp1').value === document.getElementById('addWfResp2').value) { toast('Responsible person 1 and 2 must be different'); return; }
   if (btn) btn.disabled = true;
   try {
     await callApi('addWorkflow', {
@@ -4507,7 +4384,7 @@ async function saveWorkflowEdit() {
     'Team Workflow': document.getElementById('editWfTeam').value,
     'Responsible Staff IDs': readResponsibleSelects('editWfResp1', 'editWfResp2')
   };
-  if (document.getElementById('editWfResp1').value && document.getElementById('editWfResp1').value === document.getElementById('editWfResp2').value) { toast('Primary and Second / Backup Responsible Staff must be different'); return; }
+  if (document.getElementById('editWfResp1').value && document.getElementById('editWfResp1').value === document.getElementById('editWfResp2').value) { toast('Responsible person 1 and 2 must be different'); return; }
   try {
     await callApi('updateWorkflow', { actorRole: SESSION.role, actorUserId: SESSION.userId, workflowId, fields });
     toast(T('saveChanges'));
@@ -4941,30 +4818,9 @@ function exportAppraisal() {
    Manager can pull up any staff member's breakdown ("Score Breakdown").
    Both call the same getMyScore backend action.
    ============================================================ */
-function workSummaryHtml(d) {
-  const w = d.workSummary;
-  if (!w) return '';
-  const th = x => `<th>${x}</th>`;
-  const assigned = w.assigned.length ? `<div class="table-wrap"><table><thead><tr>${['Workflow', 'Shared with', 'My Target', 'My Weightage', 'Approved', 'Pending', 'Earned KPI', 'Status'].map(th).join('')}</tr></thead><tbody>
-    ${w.assigned.map(a => `<tr><td>${escapeHtml(a.workflowName)}</td><td>${escapeHtml(a.coOwners || '-')}</td><td>${fnum(a.target)}</td><td>${fnum(a.weightage)}</td><td>${fnum(a.approvedQty)}</td><td>${fnum(a.pendingQty)}</td><td>${fnum(a.earnedKpi)}</td><td><span class="badge ${a.status === 'Performed' ? 'Approved' : a.status === 'Pending approval' ? 'Submitted' : 'Rejected'}">${a.status}</span></td></tr>`).join('')}
-    </tbody></table></div>` : '<p class="empty">No individual workflow is assigned to you.</p>';
-  const others = w.forOthers.length ? `<div class="table-wrap"><table><thead><tr>${['Workflow', 'Month', 'Responsible person', 'Approved Qty', 'KPI credit to me'].map(th).join('')}</tr></thead><tbody>
-    ${w.forOthers.map(o => `<tr><td>${escapeHtml(o.workflowName)}</td><td>${escapeHtml(o.month)}</td><td>${escapeHtml(o.ownerName)}</td><td>${fnum(o.approvedQty)}</td><td>${fnum(o.earnedKpi)}</td></tr>`).join('')}
-    </tbody></table></div>` : '<p class="empty">No work done for another person\'s responsibility in this period.</p>';
-  return `
-    <div class="grid grid-4" style="margin-bottom:12px;">
-      <div class="stat-card"><div class="label">Approved KPI credit</div><div class="value">${fnum(w.approvedCredit)}</div></div>
-      <div class="stat-card alt"><div class="label">Work for others (credit)</div><div class="value">${fnum(w.forOthersCredit)}</div></div>
-      <div class="stat-card"><div class="label">Pending approval (qty)</div><div class="value">${fnum(w.pendingQty)}</div></div>
-      <div class="stat-card alt"><div class="label">Returned for correction (qty)</div><div class="value">${fnum(w.returnedQty)}</div></div>
-    </div>
-    <div class="card"><h3 style="margin-bottom:8px;">My Assigned Responsibilities</h3>${assigned}</div>
-    <div class="card"><h3 style="margin-bottom:8px;">Work done for other responsibilities</h3>${others}</div>`;
-}
-
 function scoreCardHtml(d) {
   if (!d.kpis.length) {
-    return `<div class="card"><p class="empty">${T('noKpisForRange')}</p></div>` + workSummaryHtml(d);
+    return `<div class="card"><p class="empty">${T('noKpisForRange')}</p></div>`;
   }
   const rows = d.kpis.map(k => {
     const rawPctLabel = k.achievementPctRaw === null ? 'N/A'
@@ -4972,7 +4828,7 @@ function scoreCardHtml(d) {
     const ratingLabel = k.rating === null ? '-' : `${k.rating} (${k.ratingScore}/${k.maxRatingScore})`;
     return `
     <tr>
-      <td>${escapeHtml(k.kpiName || k.workflowName)}${k.workType && k.workType !== 'Own responsibility' ? `<div style="font-size:11px;color:var(--coffee-500)">${escapeHtml(k.workType)}</div>` : ''}</td><td>${escapeHtml(k.month)}</td><td>${k.target}</td>
+      <td>${escapeHtml(k.kpiName || k.workflowName)}</td><td>${escapeHtml(k.month)}</td><td>${k.target}</td>
       <td>${k.achievedQty}</td><td>${k.approvedQty}</td><td>${k.pendingQty || 0}</td><td>${k.rejectedQty || 0}</td><td>${k.sourceEntryCount}</td>
       <td>${rawPctLabel}</td><td>${ratingLabel}</td>
       <td>${k.weightagePct}</td><td>${k.kpiScore}</td><td>${k.maxScore}</td>
@@ -4996,8 +4852,7 @@ function scoreCardHtml(d) {
         <th data-i18n="weightagePct">Weightage %</th><th data-i18n="kpiScore">KPI Score</th><th data-i18n="maxScore">Max Score</th>
       </tr></thead><tbody>${rows}</tbody></table></div>
       <p style="font-size:11.5px;color:var(--coffee-400);margin-top:8px;">Calculated automatically from approved Working Register entries as of ${fmtDate(d.calculatedOn)}. Achievement % above 100% shows the true over-target figure; the KPI Score contribution itself is capped per company policy.</p>
-    </div>
-    ${workSummaryHtml(d)}`;
+    </div>`;
 }
 
 function defaultRangeIfEmpty(fromId, toId) {
@@ -5200,7 +5055,7 @@ async function runFormulaVerification() {
     badge.innerHTML = '<span style="color:' + statusColor(result.overall) + '">' +
       T('fvValidation') + ': ' + statusLabel(result.overall) + '</span>';
     tbody.innerHTML = result.rows.map(r => `<tr>
-        <td>${escapeHtml(r.check)}</td><td>${escapeHtml(r.expected)}</td><td>${escapeHtml(r.actual)}</td>
+        <td>${r.check}</td><td>${r.expected}</td><td>${r.actual}</td>
         <td style="color:${statusColor(r.status)};font-weight:700">${statusLabel(r.status)}</td>
       </tr>`).join('');
     const dupWrap = document.getElementById('fvDupWrap');
@@ -5282,7 +5137,7 @@ function exportFullAppraisal() {
     'Disc.(10)': a.criteria.discipline, 'Policy(10)': a.criteria.policyCompliance,
     'Behav.(10)': a.criteria.behaviour, 'Train(10)': a.criteria.training, 'Remarks(5)': a.criteria.hrRemarks,
     'HR(100)': a.hrPending ? 'Pending' : a.hrScore, Bonus: a.bonusMarks, Memo: a.memoDeduction, 'Repeat Escalation': a.repeatEscalation,
-    'HR Final': a.hrPending ? 'Pending' : a.hrFinalScore, 'Overtime Hrs': a.overtimeHours, 'Stores KPI %': a.storesKpiPct, 'Stores Rating': a.storesRating || '', 'Own Index %': a.storesOwnIndexPct === '' || a.storesOwnIndexPct == null ? '' : a.storesOwnIndexPct,
+    'HR Final': a.hrPending ? 'Pending' : a.hrFinalScore, 'Overtime Hrs': a.overtimeHours, 'Stores KPI %': a.storesKpiPct, 'Stores Rating': a.storesRating || '', 'Fair-share %': a.storesFairSharePct === '' || a.storesFairSharePct == null ? '' : a.storesFairSharePct,
     'Final Score': a.hrPending ? 'Pending' : a.combinedFinalScore, Grade: a.grade, Rating: a.hrPending ? (a.hrRatingPending ? 'HR rating pending' : 'Attendance not verified') : a.finalRating, 'Rating Note': a.finalRatingCapped ? ('Stores cap (rating by score: ' + a.finalRatingByScore + ')') : ''
   }));
   exportXlsx(rows, 'HR_Appraisal_Combined_' + document.getElementById('hrPeriod').value + '.xlsx');
@@ -5398,7 +5253,14 @@ function buKindChanged() {
   document.getElementById('buSaveBtn').disabled = true;
   document.getElementById('buResultCard').style.display = 'none';
 }
-function buCsvEsc(v) { v = String(v == null ? '' : v); return /[",\n\t]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function buCsvEsc(v) {
+  v = String(v == null ? '' : v);
+  // AUDIT FIX (Nov 2026): CSV/formula-injection guard, matching the pattern already used by this
+  // file's own exportReportCsv(). Currently only hardcoded template text flows through this
+  // function, so this is a consistency fix rather than an active risk.
+  if (/^[=+\-@]/.test(v) && !/^[-+]?\d+(\.\d+)?$/.test(v)) v = "'" + v;
+  return /[",\n\t]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
 function buDownloadTemplate() {
   const k = document.getElementById('buKind').value, c = BU_COLUMNS[k];
   const lines = [c.cols.map(buCsvEsc).join(',')].concat(c.sample.map(r => r.map(buCsvEsc).join(',')));
@@ -6408,47 +6270,6 @@ const REPORT_DEFS = {
       { key: 'earnedKpi', labelKey: 'colEarnedKpi', fmt: 'num' }, { key: 'maxKpi', labelKey: 'colMaxKpi', fmt: 'num' }
     ], totals: ['earnedKpi', 'maxKpi']
   },
-  // RESPONSIBILITY vs ACTUAL PERFORMANCE REPORT (Nov 2026): owner, fixed target and who actually did the work.
-  respActual: {
-    action: 'getResponsibilityActualReport', labelKey: 'repRespActual', filters: ['date', 'section', 'staff', 'activity', 'workflow', 'status'],
-    columns: [
-      { key: 'workflowId', labelKey: 'colWorkflowId' }, { key: 'workflowName', labelKey: 'colWorkflow' }, { key: 'month', labelKey: 'month' },
-      { key: 'responsibilityPerson', labelKey: 'colRespPerson' }, { key: 'fixedTarget', labelKey: 'colFixedTarget', fmt: 'num' },
-      { key: 'responsibilityWeightage', labelKey: 'colRespWeightage', fmt: 'num' }, { key: 'actualPerformers', labelKey: 'colActualPerformers' },
-      { key: 'actualCompleted', labelKey: 'colActualCompleted', fmt: 'num' }, { key: 'approvedQty', labelKey: 'colApprovedActual', fmt: 'num' },
-      { key: 'pendingQty', labelKey: 'colPendingQty', fmt: 'num' }, { key: 'remainingTarget', labelKey: 'colRemainingTarget', fmt: 'num' },
-      { key: 'nonParticipation', labelKey: 'colNonParticipation' }, { key: 'doneByOther', labelKey: 'colDoneByOther' }, { key: 'approvalStatus', labelKey: 'colApprovalStatus' }
-    ], totals: ['approvedQty', 'pendingQty', 'actualCompleted']
-  },
-  // OVERALL STAFF PERFORMANCE REPORT (Nov 2026): all staff ranked by approved final appraisal score.
-  overallStaff: {
-    action: 'getOverallStaffPerformanceReport', labelKey: 'repOverallStaff', filters: ['date', 'section', 'staff'], isSummaryPlusRows: true,
-    summaryFields: [['totalStaff', 'colTotalStaff', 'num'], ['totalAssignedWorkflows', 'colTotalAssignedWf', 'num'], ['totalApprovedWork', 'colTotalApprovedWork', 'num'], ['totalPendingApprovals', 'colTotalPending', 'num'], ['totalCompletedQty', 'colTotalCompleted', 'num'], ['avgStoresKpi', 'colAvgStores', 'num'], ['avgHrScore', 'colAvgHr', 'num'], ['avgFinalScore', 'colAvgFinal', 'num'], ['topPerformer', 'colTopPerformer', 'text'], ['ratingDistribution', 'colRatingDist', 'text']],
-    columns: [
-      { key: 'rank', labelKey: 'colRank' }, { key: 'staffId', labelKey: 'colStaffId' }, { key: 'staffName', labelKey: 'staff' }, { key: 'designation', labelKey: 'colDesignation' },
-      { key: 'assignedResponsibilities', labelKey: 'colAssignedResp', fmt: 'num' }, { key: 'actualCompleted', labelKey: 'colActualCompleted', fmt: 'num' },
-      { key: 'approvedQty', labelKey: 'colApprovedActual', fmt: 'num' }, { key: 'workForOthers', labelKey: 'colWorkForOthers', fmt: 'num' },
-      { key: 'achievementPct', labelKey: 'colAchievementPct', fmt: 'pct' }, { key: 'earnedKpi', labelKey: 'colEarnedKpi', fmt: 'num' },
-      { key: 'storesKpiPct', labelKey: 'colStoresOwnIdx', fmt: 'pct' }, { key: 'hrScore', labelKey: 'colHrScore', fmt: 'num' },
-      { key: 'finalScore', labelKey: 'colFinalScore', fmt: 'num' }, { key: 'finalRating', labelKey: 'colFinalRating' }
-    ], totals: ['approvedQty', 'actualCompleted', 'earnedKpi']
-  },
-  // INDIVIDUAL STAFF WORK-BASED APPRAISAL REPORT (Nov 2026): responsibility vs actual work, per Staff + Workflow + Month.
-  workBased: {
-    action: 'getWorkBasedAppraisalReport', labelKey: 'repWorkBased', filters: ['date', 'section', 'staff', 'activity', 'workflow', 'status'],
-    columns: [
-      { key: 'staffId', labelKey: 'colStaffId' }, { key: 'staffName', labelKey: 'staff' }, { key: 'designation', labelKey: 'colDesignation' },
-      { key: 'responsibilityAssigned', labelKey: 'colRespAssigned' }, { key: 'workType', labelKey: 'colWorkType' },
-      { key: 'workflowName', labelKey: 'colWorkflow' }, { key: 'month', labelKey: 'month' }, { key: 'responsibilityOwner', labelKey: 'colRespOwner' },
-      { key: 'target', labelKey: 'colWfTarget', fmt: 'num' }, { key: 'actualQty', labelKey: 'colActualCompleted', fmt: 'num' },
-      { key: 'approvedQty', labelKey: 'colApprovedActual', fmt: 'num' }, { key: 'achievementPct', labelKey: 'colAchievementPct', fmt: 'pct' },
-      { key: 'weightage', labelKey: 'colWeightage', fmt: 'num' }, { key: 'earnedKpi', labelKey: 'colEarnedKpi', fmt: 'num' },
-      { key: 'pendingQty', labelKey: 'colPendingQty', fmt: 'num' }, { key: 'rejectedQty', labelKey: 'colRejectedQty', fmt: 'num' },
-      { key: 'returnedQty', labelKey: 'colReturnedQty', fmt: 'num' }, { key: 'participation', labelKey: 'colParticipation' },
-      { key: 'storesKpiPct', labelKey: 'colStoresOwnIdx', fmt: 'pct' }, { key: 'hrScore', labelKey: 'colHrScore', fmt: 'num' },
-      { key: 'finalScore', labelKey: 'colFinalScore', fmt: 'num' }, { key: 'finalRating', labelKey: 'colFinalRating' }
-    ], totals: ['approvedQty', 'actualQty', 'earnedKpi', 'pendingQty', 'rejectedQty', 'returnedQty']
-  },
   staffPerf: {
     action: 'getStaffPerformanceReport', labelKey: 'repStaffPerf', filters: ['date', 'section', 'staff'],
     // isSummaryPlusRows: the server now returns { rows, summary }. summary
@@ -6465,12 +6286,28 @@ const REPORT_DEFS = {
       { key: 'staffId', labelKey: 'colStaffId' }, { key: 'staffName', labelKey: 'staff' },
       { key: 'section', labelKey: 'section' }, { key: 'designation', labelKey: 'colDesignation' },
       { key: 'assignedWorkflows', labelKey: 'colAssignedWf', fmt: 'num' }, { key: 'assignedWeightage', labelKey: 'colAssignedWeightage', fmt: 'num' },
-      { key: 'assignedEarned', labelKey: 'colAssignedEarned', fmt: 'num' },
+      { key: 'assignedEarned', labelKey: 'colAssignedEarned', fmt: 'num' }, { key: 'assignedPct', labelKey: 'colAssignedPct', fmt: 'pct' },
       { key: 'monthlyTarget', labelKey: 'colParticipatedTarget', fmt: 'num' }, { key: 'approvedActual', labelKey: 'colApprovedActual', fmt: 'num' },
+      { key: 'balance', labelKey: 'colBalance', fmt: 'num' }, { key: 'achievementPct', labelKey: 'colAchievementPct', fmt: 'pct' },
       { key: 'kpiScore', labelKey: 'colKpiScore', fmt: 'num' }, { key: 'maxScore', labelKey: 'colMaxScore', fmt: 'num' },
-      { key: 'ownRating', labelKey: 'colOwnRating', fmt: 'ownRating' },
-      { key: 'assignedPct', labelKey: 'colAssignedPct', fmt: 'pct' }
+      { key: 'overallPct', labelKey: 'colOverallPct', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating', fmt: 'scoreRating', scoreKey: 'kpiScore', maxKey: 'maxScore' }
     ], totals: ['assignedWeightage', 'assignedEarned', 'kpiScore', 'maxScore']
+  },
+  // RESPONSIBILITY INDEX (Nov 2026): each staff scored against his OWN responsibility (no fair-share index).
+  // Team workflows + unassigned workflows form a Team pool whose Max and Earned are split equally over all
+  // Active staff of the Section. Matches getResponsibilityIndexReport() in Code.gs. Report only.
+  respIndex: {
+    action: 'getResponsibilityIndexReport', labelKey: 'repRespIndex', filters: ['date', 'section'],
+    isSummaryPlusRows: true,
+    columns: [
+      { key: 'staffId', labelKey: 'colStaffId' }, { key: 'staffName', labelKey: 'staff' },
+      { key: 'section', labelKey: 'section' },
+      { key: 'ownMax', labelKey: 'colRiOwnMax', fmt: 'num' }, { key: 'ownEarned', labelKey: 'colRiOwnEarned', fmt: 'num' },
+      { key: 'ownPct', labelKey: 'colRiOwnPct', fmt: 'pct' },
+      { key: 'teamMax', labelKey: 'colRiTeamMax', fmt: 'num' }, { key: 'teamEarned', labelKey: 'colRiTeamEarned', fmt: 'num' },
+      { key: 'totalMax', labelKey: 'colRiTotalMax', fmt: 'num' }, { key: 'totalEarned', labelKey: 'colRiTotalEarned', fmt: 'num' },
+      { key: 'indexPct', labelKey: 'colRiIndex', fmt: 'pct' }, { key: 'rating', labelKey: 'colRating' }
+    ], totals: ['ownMax', 'ownEarned', 'teamMax', 'teamEarned', 'totalMax', 'totalEarned']
   },
   activityPerf: {
     action: 'getActivityPerformanceReport', labelKey: 'repActivityPerf', filters: ['date', 'section', 'staff', 'activity'],
@@ -6660,9 +6497,88 @@ const REPORT_DEFS = {
       { key: 'hrScore', labelKey: 'hr100Col', fmt: 'num' }, { key: 'bonusMarks', labelKey: 'bonus', fmt: 'num' },
       { key: 'memoDeduction', labelKey: 'memo', fmt: 'num' }, { key: 'hrFinalScore', labelKey: 'hrFinalCol', fmt: 'num' },
       { key: 'storesKpiPct', labelKey: 'storesPctCol', fmt: 'pct' }, { key: 'storesRating', labelKey: 'colStoresRating' },
-      { key: 'storesOwnIndexPct', labelKey: 'colFairSharePct', fmt: 'pct' }, { key: 'combinedFinalScore', labelKey: 'final', fmt: 'num' },
+      { key: 'storesFairSharePct', labelKey: 'colFairSharePct', fmt: 'pct' }, { key: 'combinedFinalScore', labelKey: 'final', fmt: 'num' },
       { key: 'grade', labelKey: 'gradeCol' }, { key: 'finalRating', labelKey: 'rating', fmt: 'badge' }
     ], totals: ['bonusMarks', 'memoDeduction']
+  },
+
+  // ---- HYBRID KPI REPORTS (Nov 2026) ----
+  // Added to close the "6 backend actions, no frontend screen" gap the Nov 2026 audit found.
+  // getHybridConfig has its own status strip above (not a report - see #hybConfigStrip), and
+  // getHybridDashboard's two row arrays (staffWise/workflowWise) become two report buttons since
+  // this engine renders one table per report. All five are Manager-only, matching
+  // REPORT_MANAGER_ONLY_ACTIONS / requireManager() in Code.gs for these actions - this Reports
+  // view is already Manager-only in the nav, so managerOnly:true here is belt-and-braces, same
+  // as the existing staffContribution report above.
+  hybStaffReport: {
+    action: 'getHybridStaffReport', labelKey: 'repHybStaffReport', managerOnly: true, filters: ['date', 'section', 'staff'],
+    isSummaryPlusRows: true,
+    columns: [
+      { key: 'staffId', labelKey: 'colStaffId' }, { key: 'staffName', labelKey: 'staff' }, { key: 'section', labelKey: 'section' },
+      { key: 'assignedWorkflowCount', labelKey: 'colAssignedWf', fmt: 'num' }, { key: 'performedWorkflowCount', labelKey: 'colPerformedWf', fmt: 'num' },
+      { key: 'individualTarget', labelKey: 'colIndividualTarget', fmt: 'num' }, { key: 'individualApprovedQty', labelKey: 'colIndividualApprovedQty', fmt: 'num' },
+      { key: 'teamApprovedQty', labelKey: 'colTeamApprovedQty', fmt: 'num' }, { key: 'pendingApprovalQty', labelKey: 'colPendingQty', fmt: 'num' },
+      { key: 'rejectedQty', labelKey: 'colRejectedQty', fmt: 'num' }, { key: 'individualKpiMarks', labelKey: 'colIndividualKpiMarks', fmt: 'num' },
+      { key: 'teamKpiMarks', labelKey: 'colTeamKpiMarks', fmt: 'num' }, { key: 'totalStoresKpiScore', labelKey: 'colKpiScore', fmt: 'num' },
+      { key: 'storesAchievementPct', labelKey: 'colAchievementPct', fmt: 'pct' }, { key: 'storesMaxScore', labelKey: 'colMaxScore', fmt: 'num' },
+      { key: 'hrFinalScore', labelKey: 'hrFinalCol', fmt: 'num' }, { key: 'combinedFinalScore', labelKey: 'final', fmt: 'num' },
+      { key: 'finalRating', labelKey: 'colRating' }, { key: 'rank', labelKey: 'colRank', fmt: 'num' }
+    ], totals: ['individualTarget', 'individualApprovedQty', 'teamApprovedQty', 'individualKpiMarks', 'teamKpiMarks', 'totalStoresKpiScore', 'storesMaxScore']
+  },
+  hybWorkflowDetail: {
+    action: 'getHybridWorkflowDetailReport', labelKey: 'repHybWorkflowDetail', managerOnly: true, filters: ['date', 'section', 'staff'],
+    isSummaryPlusRows: true,
+    columns: [
+      { key: 'staffId', labelKey: 'colStaffId' }, { key: 'staffName', labelKey: 'staff' },
+      { key: 'activityName', labelKey: 'activity' }, { key: 'workflowName', labelKey: 'workflow' }, { key: 'workType', labelKey: 'colWorkType' },
+      { key: 'month', labelKey: 'colMonth' }, { key: 'assigned', labelKey: 'colAssignedFlag' }, { key: 'performed', labelKey: 'colPerformedFlag' },
+      { key: 'target', labelKey: 'colWfTarget', fmt: 'num' }, { key: 'approvedQty', labelKey: 'colApprovedActual', fmt: 'num' },
+      { key: 'pendingQty', labelKey: 'colPendingQty', fmt: 'num' }, { key: 'rejectedQty', labelKey: 'colRejectedQty', fmt: 'num' },
+      { key: 'kpiMarks', labelKey: 'colKpiMarks', fmt: 'num' }
+    ], totals: ['target', 'approvedQty', 'pendingQty', 'rejectedQty', 'kpiMarks']
+  },
+  hybDashboardStaff: {
+    labelKey: 'repHybDashboardStaff', managerOnly: true, filters: ['date', 'staff', 'activity', 'workflow', 'status'],
+    isSummaryPlusRows: true, customFetch: fetchHybridDashboardStaff,
+    columns: [
+      { key: 'staffId', labelKey: 'colStaffId' }, { key: 'staffName', labelKey: 'staff' },
+      { key: 'approvedQty', labelKey: 'colApprovedActual', fmt: 'num' }, { key: 'kpiMarks', labelKey: 'colKpiMarks', fmt: 'num' }
+    ], totals: ['approvedQty', 'kpiMarks']
+  },
+  hybDashboardWorkflow: {
+    labelKey: 'repHybDashboardWorkflow', managerOnly: true, filters: ['date', 'staff', 'activity', 'workflow', 'status'],
+    isSummaryPlusRows: true, customFetch: fetchHybridDashboardWorkflow,
+    columns: [
+      { key: 'workflowId', labelKey: 'colWorkflowId' }, { key: 'workflowName', labelKey: 'workflow' }, { key: 'month', labelKey: 'colMonth' },
+      { key: 'target', labelKey: 'colWfTarget', fmt: 'num' }, { key: 'approvedQty', labelKey: 'colApprovedActual', fmt: 'num' },
+      { key: 'achievementPct', labelKey: 'colAchievementPct', fmt: 'pct' }, { key: 'score', labelKey: 'colKpiScore', fmt: 'num' },
+      { key: 'weightage', labelKey: 'colWeightage', fmt: 'num' }
+    ], totals: ['target', 'approvedQty', 'score', 'weightage']
+  },
+  // Go-live checklist (Test F / audit's own framing): which active workflows still have nobody
+  // assigned. No from/to concept server-side (it's a live snapshot) - 'date' stays in filters
+  // only so this report keeps the same always-required date range as every other one here;
+  // the dates themselves aren't used.
+  hybPreflight: {
+    labelKey: 'repHybPreflight', managerOnly: true, filters: ['date'],
+    isSummaryPlusRows: true, customFetch: fetchHybridPreflight,
+    columns: [
+      { key: 'workflowId', labelKey: 'colWorkflowId' }, { key: 'workflowName', labelKey: 'workflow' },
+      { key: 'activityName', labelKey: 'activity' }, { key: 'workType', labelKey: 'colWorkType' }
+    ], totals: []
+  },
+  // Backend allows Manager OR HR (requireManagerOrHR); this Reports view itself is Manager-only
+  // in the nav, so managerOnly:true is deliberately left OFF this one def (true here would
+  // understate what the backend actually allows) - an HR user simply won't see this tab at all,
+  // same as every other report above.
+  hybAssignmentHistory: {
+    labelKey: 'repHybHistory', filters: ['date', 'workflow'],
+    customFetch: fetchHybridAssignmentHistory,
+    columns: [
+      { key: 'changedOn', labelKey: 'colChangedOn', fmt: 'date' }, { key: 'changedBy', labelKey: 'colChangedBy' },
+      { key: 'workflowId', labelKey: 'colWorkflowId' }, { key: 'workflowName', labelKey: 'workflow' }, { key: 'activityName', labelKey: 'activity' },
+      { key: 'oldAssigned', labelKey: 'colOldAssigned' }, { key: 'newAssigned', labelKey: 'colNewAssigned' }, { key: 'reason', labelKey: 'colChangeReason' }
+    ], totals: []
   }
 };
 
@@ -6728,7 +6644,6 @@ function repFmt(val, fmt, row, col) {
   if (fmt === 'date') { const d = new Date(val); return isNaN(d) ? '' : escapeHtml(d.toLocaleDateString()); }
   if (fmt === 'badge') return `<span class="badge ${safeStatusClass(val)}">${escapeHtml(val)}</span>`;
   if (fmt === 'scoreRating') return repScoreRating(val, row, col);
-  if (fmt === 'ownRating') return repOwnRating(row);
   return escapeHtml(val);
 }
 
@@ -6784,19 +6699,6 @@ function repFairShareInfo_(row, col) {
     rating = floorBand.rating; floorApplied = true;
   }
   return { earned: r2(earned), total: r2(total), share: r2(share), fair: r2(fair), idx: r2(idx), rating, ach: r2(ach), floorApplied };
-}
-/* OWN RATING (Nov 2026): rating on responsibility vs achievement - Earned / Own Weightage. */
-function repOwnRatingText(row) {
-  if (!row || row.assignedPct === null || row.assignedPct === undefined) return 'Not Set';
-  return row.assignedEarned + ' / ' + row.assignedWeightage + ' = ' + row.assignedPct + '% - ' + row.ownRating;
-}
-function repOwnRating(row) {
-  if (!row || row.assignedPct === null || row.assignedPct === undefined) return escapeHtml(T('repNotSet'));
-  const pct = Math.max(0, Math.min(100, Number(row.assignedPct) || 0));
-  return `<div class="rt-cell" title="${escapeHtml(repOwnRatingText(row))}">
-    <div class="rt-top"><span class="rt-score">${escapeHtml(row.assignedEarned)}<span class="rt-of"> / ${escapeHtml(row.assignedWeightage)}</span><span class="rt-pct">${escapeHtml(row.assignedPct)}%</span></span><span class="badge ${safeStatusClass(row.ownRating)}">${escapeHtml(row.ownRating)}</span></div>
-    <div class="rt-bar"><i class="rt-${safeStatusClass(row.ownRating)}" style="width:${pct}%"></i></div>
-  </div>`;
 }
 function repScoreRating(val, row, col) {
   const fallback = `<span class="badge ${safeStatusClass(val)}">${escapeHtml(val)}</span>`;
@@ -6867,6 +6769,55 @@ function loadReportsView() {
   buildReportTypeButtons();
   populateReportFilterDropdowns();
   applyReportFilterVisibility();
+  loadHybridConfigStrip();
+}
+
+// Hybrid KPI status strip (Nov 2026) - see the HTML comment above #hybConfigStrip. Best-effort:
+// an older deployment without getHybridConfig simply keeps the strip hidden, same as any other
+// optional widget on this page.
+async function loadHybridConfigStrip() {
+  const el = document.getElementById('hybConfigStrip');
+  try {
+    const c = await callApi('getHybridConfig', {});
+    const yn = v => v ? T('fvYes') : T('fvNo');
+    const w = c.finalWeights || {};
+    el.innerHTML = `<b>${T('hybConfigEnabled')}: ${yn(c.enabled)}</b>`
+      + ` &nbsp;|&nbsp; ${T('hybConfigReady')}: ${yn(c.ready)}`
+      + ` &nbsp;|&nbsp; ${T('hybConfigWeights')}: ${escapeHtml(w.storesKpi)}% / ${escapeHtml(w.hrAppraisal)}%`
+      + ` &nbsp;|&nbsp; ${T('hybConfigRequireAssignment')}: ${yn(c.requireAssignment)}`;
+    el.style.display = '';
+  } catch (e) { el.style.display = 'none'; }
+}
+
+// Hybrid KPI reports (Nov 2026): getHybridPreflight/getWorkflowAssignmentHistory/
+// getHybridDashboard don't return a plain {rows}/{rows,summary} shape the generic report table
+// below expects, so each gets a small customFetch that reshapes the real backend response into
+// that shape - no backend change, same pattern fetchStaffContribution/fetchSectionPerfMonthwise
+// already use for other reports. getHybridStaffReport/getHybridWorkflowDetailReport need no
+// customFetch - their own return shape already matches isSummaryPlusRows as-is.
+async function fetchHybridPreflight(params) {
+  const d = await callApi('getHybridPreflight', {});
+  return { rows: d.unassigned || [], summary: { activeWorkflows: d.activeWorkflows, assignedWorkflows: d.assignedWorkflows, unassignedWorkflows: d.unassignedWorkflows } };
+}
+async function _fetchHybridDashboardRaw(params) {
+  return callApi('getHybridDashboard', { from: params.from, to: params.to, staffId: params.staffId, activityId: params.activityId, workflowId: params.workflowId, status: params.status });
+}
+async function fetchHybridDashboardStaff(params) { const d = await _fetchHybridDashboardRaw(params); return { rows: d.staffWise || [], summary: d.summary }; }
+async function fetchHybridDashboardWorkflow(params) { const d = await _fetchHybridDashboardRaw(params); return { rows: d.workflowWise || [], summary: d.summary }; }
+// getWorkflowAssignmentHistory has no from/to concept server-side (it's a full change log,
+// optionally filtered by Workflow ID only) - filtering by Changed On here so the Reports
+// screen's always-required date range still means something, and remapping the raw sheet
+// column names (e.g. 'Changed On') to the camelCase fields every other report's columns use.
+async function fetchHybridAssignmentHistory(params) {
+  const rows = await callApi('getWorkflowAssignmentHistory', { workflowId: params.workflowId });
+  const from = params.from ? new Date(params.from + 'T00:00:00') : null;
+  const to = params.to ? new Date(params.to + 'T23:59:59') : null;
+  return (rows || [])
+    .filter(r => { const t = new Date(r['Changed On']); return (!from || t >= from) && (!to || t <= to); })
+    .map(r => ({
+      changedOn: r['Changed On'], changedBy: r['Changed By'], workflowId: r['Workflow ID'], workflowName: r['Workflow Name'],
+      activityName: r['Activity Name'], oldAssigned: r['Old Assigned'], newAssigned: r['New Assigned'], reason: r['Reason']
+    }));
 }
 
 async function fetchStaffContribution(params) {
@@ -7056,10 +7007,19 @@ async function runReport() {
 function renderReportSummaryCards(s) {
   const el = document.getElementById('repSummaryCards');
   const card = (labelKey, val) => `<div style="background:var(--cream-100);border-radius:10px;padding:10px 12px;"><div style="font-size:11px;color:var(--coffee-500)">${T(labelKey)}</div><div style="font-size:17px;font-weight:700;color:var(--coffee-900)">${val}</div></div>`;
-  const fieldDefs = (REPORT_DEFS[currentReportId] && REPORT_DEFS[currentReportId].summaryFields) || [
+  const fieldDefs = [
+    ['ownMaxTotal', 'repRiOwnMaxTotal', 'num'], ['teamPoolMax', 'repRiTeamPool', 'num'],
     ['monthlyTarget', 'colMonthlyTarget', 'num'], ['approvedActual', 'colApprovedActual', 'num'],
     ['balance', 'colBalance', 'num'], ['achievementPct', 'colAchievementPct', 'pct'],
-    ['kpiScore', 'colKpiScore', 'num'], ['maxScore', 'colMaxScore', 'num']
+    ['kpiScore', 'colKpiScore', 'num'], ['maxScore', 'colMaxScore', 'num'],
+    // Hybrid KPI reports (Nov 2026): getHybridPreflight's summary uses activeWorkflows/
+    // assignedWorkflows/unassignedWorkflows; getHybridDashboard's summary shares the same
+    // assignedWorkflows/unassignedWorkflows keys (same meaning) plus its own total*/*Entries keys.
+    ['activeWorkflows', 'cardActiveWorkflows', 'num'], ['assignedWorkflows', 'cardAssignedWorkflows', 'num'],
+    ['unassignedWorkflows', 'cardUnassignedWorkflows', 'num'], ['totalActiveWorkflows', 'cardTotalActiveWorkflows', 'num'],
+    ['totalWorkEntries', 'cardTotalWorkEntries', 'num'], ['approvedEntries', 'cardApprovedEntries', 'num'],
+    ['pendingApprovals', 'cardPendingApprovals', 'num'], ['rejectedEntries', 'cardRejectedEntries', 'num'],
+    ['returnedEntries', 'cardReturnedEntries', 'num']
   ];
   el.style.display = 'grid';
   el.style.gridTemplateColumns = 'repeat(auto-fit,minmax(140px,1fr))';
@@ -7067,7 +7027,7 @@ function renderReportSummaryCards(s) {
   el.style.marginBottom = '14px';
   el.innerHTML = fieldDefs
     .filter(([key]) => s[key] !== undefined)
-    .map(([key, labelKey, fmt]) => card(labelKey, fmt === 'text' ? escapeHtml(String(s[key])) : (s[key] === null ? '-' : repFmt(s[key], fmt))))
+    .map(([key, labelKey, fmt]) => card(labelKey, repFmt(s[key], fmt)))
     .join('');
 }
 
@@ -7076,7 +7036,7 @@ function exportReportCsv() {
   const headers = lastReportColumns.map(c => T(c.labelKey));
   const csvEsc = (v) => { let s = (v === null || v === undefined) ? '' : String(v); if (/^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = "'" + s; /* spreadsheet formula-injection guard */ return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const lines = [headers.map(csvEsc).join(',')];
-  lastReportRows.forEach(r => { lines.push(lastReportColumns.map(c => csvEsc(c.fmt === 'ownRating' ? repOwnRatingText(r) : c.fmt === 'scoreRating' ? repScoreRatingText(r[c.key], r, c) : repStripTags(repFmt(r[c.key], c.fmt)))).join(',')); });
+  lastReportRows.forEach(r => { lines.push(lastReportColumns.map(c => csvEsc(c.fmt === 'scoreRating' ? repScoreRatingText(r[c.key], r, c) : repStripTags(repFmt(r[c.key], c.fmt)))).join(',')); });
   const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -7091,7 +7051,7 @@ function printReport() {
   const w = window.open('', '_blank');
   const title = T(REPORT_DEFS[currentReportId].labelKey);
   const headHtml = lastReportColumns.map(c => `<th>${T(c.labelKey)}</th>`).join('');
-  const bodyHtml = lastReportRows.map(r => '<tr>' + lastReportColumns.map(c => `<td>${(c.fmt === 'scoreRating' || c.fmt === 'ownRating') ? repFmt(r[c.key], c.fmt, r, c) : repStripTags(repFmt(r[c.key], c.fmt))}</td>`).join('') + '</tr>').join('');
+  const bodyHtml = lastReportRows.map(r => '<tr>' + lastReportColumns.map(c => `<td>${c.fmt === 'scoreRating' ? repFmt(r[c.key], c.fmt, r, c) : repStripTags(repFmt(r[c.key], c.fmt))}</td>`).join('') + '</tr>').join('');
   // Letterhead (Company/Department + Staff/Section scope + Prepared On) -
   // same lastReportMeta populated by updateReportLetterhead() during
   // runReport(), so the printed copy always matches what's on screen.
