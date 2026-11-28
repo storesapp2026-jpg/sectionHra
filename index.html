@@ -1302,7 +1302,7 @@ main.content{
       <!-- LOGIN ACCOUNTS (HR only) -->
       <section class="view" id="view-loginAccounts">
         <h2 class="view-title">Login Accounts</h2>
-        <p class="view-sub">HR creates and maintains logins for staff. New accounts get the starter password <strong>ChangeMe@123</strong> and must choose their own password at first login. Passwords are never shown or stored in plain text.</p>
+        <p class="view-sub">HR creates and maintains logins for staff. Each new or reset account gets its own random one-time password (shown once, only to you) and must choose a new password at first login. Passwords are never shown or stored in plain text.</p>
         <div class="card">
           <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:10px;">
             <div><label for="laSearch">Search</label><input type="text" id="laSearch" placeholder="Name / ID / User ID" oninput="renderLoginAccounts()"></div>
@@ -4353,23 +4353,21 @@ async function bulkCreateLogins() {
   const btn = document.getElementById('laBulkBtn');
   const pendingCount = LOGIN_ACCOUNTS.filter(r => !r.userId && r.staffId && r.staffStatus !== 'Inactive').length;
   if (!pendingCount) { toast('Every active staff already has a login'); return; }
-  if (!confirm('Create Staff-role logins for ' + pendingCount + ' active staff who have none?\n\nStarter password: ChangeMe@123 (must be changed at first login).\nManager logins are not created here - create those one by one.')) return;
+  if (!confirm('Create Staff-role logins for ' + pendingCount + ' active staff who have none?\n\nEach person gets a different one-time password. You will download them as a CSV at the end (shown only once). They must change it at first login.\nManager logins are not created here - create those one by one.')) return;
   btn.disabled = true;
   const made = [];
-  let defaultPassword = 'ChangeMe@123';
   try {
     for (let guard = 0; guard < 40; guard++) {
       laShowResult('⏳ Creating logins… ' + made.length + ' of ' + pendingCount + ' done. Please keep this page open.');
       const d = await callApi('bulkCreateLoginAccounts', {});
       (d.accounts || []).forEach(a => made.push(a));
-      if (d.defaultPassword) defaultPassword = d.defaultPassword;
       if (!d.remaining || !d.created) break; // done, or nothing new could be created this round
     }
   } catch (e) { toast(e.message); }
   btn.disabled = false;
   if (made.length) {
-    laShowResult('✅ ' + made.length + ' logins created. Starter password for all: <strong>' + escapeHtml(defaultPassword) + '</strong> (each person must change it at first login). ' +
-      '<button class="btn btn-outline btn-sm" onclick="downloadNewLogins()">⬇ Download list (CSV)</button>');
+    laShowResult('✅ ' + made.length + ' logins created. Each has its own one-time password - download the list NOW (passwords are not shown again). ' +
+      '<button class="btn btn-outline btn-sm" onclick="downloadNewLogins()">⬇ Download list with passwords (CSV)</button>');
     window.__laLastBulk = made;
   } else {
     laShowResult('No new logins were created.');
@@ -4378,7 +4376,7 @@ async function bulkCreateLogins() {
 }
 function downloadNewLogins() {
   const made = window.__laLastBulk || [];
-  const csv = ['User ID,Staff ID,Staff Name'].concat(made.map(a => [a.userId, a.staffId, '"' + String(a.staffName).replace(/"/g, '""') + '"'].join(','))).join('\r\n');
+  const csv = ['User ID,Staff ID,Staff Name,One-time password'].concat(made.map(a => [a.userId, a.staffId, '"' + String(a.staffName).replace(/"/g, '""') + '"', a.password || ''].join(','))).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -5202,7 +5200,7 @@ async function runFormulaVerification() {
     badge.innerHTML = '<span style="color:' + statusColor(result.overall) + '">' +
       T('fvValidation') + ': ' + statusLabel(result.overall) + '</span>';
     tbody.innerHTML = result.rows.map(r => `<tr>
-        <td>${r.check}</td><td>${r.expected}</td><td>${r.actual}</td>
+        <td>${escapeHtml(r.check)}</td><td>${escapeHtml(r.expected)}</td><td>${escapeHtml(r.actual)}</td>
         <td style="color:${statusColor(r.status)};font-weight:700">${statusLabel(r.status)}</td>
       </tr>`).join('');
     const dupWrap = document.getElementById('fvDupWrap');
